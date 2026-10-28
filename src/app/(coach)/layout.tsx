@@ -1,4 +1,5 @@
 import { CoachMobileHeader, CoachSidebar } from "@/components/layout/coach-nav";
+import { SessionBar } from "@/components/layout/session-bar";
 
 export default function CoachLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -6,6 +7,7 @@ export default function CoachLayout({ children }: { children: React.ReactNode })
       <CoachMobileHeader />
       <CoachSidebar />
       <main className="relative z-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+        <SessionBar variant="coach" />
         {children}
       </main>
     </div>

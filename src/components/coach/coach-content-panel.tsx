@@ -7,11 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { apiJson } from "@/lib/api/http";
 import {
   CONTENT_CATEGORIES,
   createId,
-  loadCoachPosts,
-  saveCoachPosts,
   TYPE_LABELS,
   type ContentCategory,
   type ContentItem,
@@ -46,11 +45,13 @@ export function CoachContentPanel() {
 
   useEffect(() => {
     let cancelled = false;
-    const timer = window.setTimeout(() => {
+    void (async () => {
       try {
-        const data = loadCoachPosts();
+        const data = await apiJson<{ items: ContentItem[]; savedIds: string[] }>(
+          "/api/content",
+        );
         if (cancelled) return;
-        setPosts(data);
+        setPosts(data.items);
         setStatus("ready");
       } catch (error) {
         if (cancelled) return;
@@ -59,15 +60,14 @@ export function CoachContentPanel() {
         );
         setStatus("error");
       }
-    }, 280);
+    })();
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, []);
 
   function handlePost() {
-    startTransition(() => {
+    startTransition(async () => {
       if (!title.trim() || !summary.trim()) {
         setFlash("Title and summary are required.");
         return;
@@ -93,14 +93,25 @@ export function CoachContentPanel() {
               : "Read doc",
         openHref: openHref.trim() || undefined,
       };
-      const next = [item, ...posts];
-      saveCoachPosts(next);
-      setPosts(next);
-      setTitle("");
-      setSummary("");
-      setBody("");
-      setOpenHref("");
-      setFlash(`Posted “${item.title}” to the client Content library.`);
+      try {
+        const { item: created } = await apiJson<{ item: ContentItem }>(
+          "/api/content",
+          {
+            method: "POST",
+            body: JSON.stringify({ item }),
+          },
+        );
+        setPosts((current) => [created, ...current]);
+        setTitle("");
+        setSummary("");
+        setBody("");
+        setOpenHref("");
+        setFlash(`Posted “${created.title}” to the client Content library.`);
+      } catch (error) {
+        setFlash(
+          error instanceof Error ? error.message : "Failed to post content",
+        );
+      }
     });
   }
 

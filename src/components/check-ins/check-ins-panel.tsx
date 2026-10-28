@@ -7,22 +7,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { apiJson } from "@/lib/api/http";
 import {
   ASSIGNED_FORMS,
   emptyAnswers,
   formatSubmittedAt,
   getFormById,
-  loadSubmissions,
-  saveSubmissions,
   summarizeAnswers,
-  createId,
   type CheckInFormTemplate,
   type CheckInSubmission,
 } from "@/lib/data/check-ins";
-import { getClientById, loadActiveClientId } from "@/lib/data/clients";
 import { cn } from "@/lib/utils";
 
 type Status = "loading" | "ready" | "error";
+
+async function fetchSubmissions() {
+  const data = await apiJson<{ submissions: CheckInSubmission[] }>(
+    "/api/check-ins",
+  );
+  return data.submissions;
+}
 
 export function CheckInsPanel() {
   const [submissions, setSubmissions] = useState<CheckInSubmission[]>([]);
@@ -43,9 +47,9 @@ export function CheckInsPanel() {
 
   useEffect(() => {
     let cancelled = false;
-    const timer = window.setTimeout(() => {
+    void (async () => {
       try {
-        const data = loadSubmissions();
+        const data = await fetchSubmissions();
         if (cancelled) return;
         setSubmissions(data);
         setStatus("ready");
@@ -56,10 +60,9 @@ export function CheckInsPanel() {
         );
         setStatus("error");
       }
-    }, 300);
+    })();
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, []);
 
@@ -70,14 +73,8 @@ export function CheckInsPanel() {
     setJustSaved(null);
   }
 
-  function persist(next: CheckInSubmission[]) {
-    saveSubmissions(next);
-    setSubmissions(next);
-    setStatus("ready");
-  }
-
   function handleSubmit() {
-    startTransition(() => {
+    startTransition(async () => {
       for (const field of activeForm.fields) {
         if (field.required && !answers[field.id]?.trim()) {
           setFormError(`“${field.label}” is required.`);
@@ -85,20 +82,27 @@ export function CheckInsPanel() {
         }
       }
       setFormError(null);
-      const clientId = loadActiveClientId();
-      const client = getClientById(clientId);
-      const submission: CheckInSubmission = {
-        id: createId("ci"),
-        formId: activeForm.id,
-        formTitle: activeForm.title,
-        submittedAt: new Date().toISOString(),
-        answers: { ...answers },
-        clientId,
-        clientName: client?.name ?? "Client",
-      };
-      persist([submission, ...submissions]);
-      setAnswers(emptyAnswers(activeForm));
-      setJustSaved(activeForm.title);
+      try {
+        const { submission } = await apiJson<{ submission: CheckInSubmission }>(
+          "/api/check-ins",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              formId: activeForm.id,
+              formTitle: activeForm.title,
+              answers: { ...answers },
+            }),
+          },
+        );
+        setSubmissions([submission, ...submissions]);
+        setStatus("ready");
+        setAnswers(emptyAnswers(activeForm));
+        setJustSaved(activeForm.title);
+      } catch (error) {
+        setFormError(
+          error instanceof Error ? error.message : "Failed to submit check-in",
+        );
+      }
     });
   }
 
@@ -126,17 +130,19 @@ export function CheckInsPanel() {
           onClick={() => {
             setStatus("loading");
             setErrorMessage(null);
-            try {
-              setSubmissions(loadSubmissions());
-              setStatus("ready");
-            } catch (error) {
-              setErrorMessage(
-                error instanceof Error
-                  ? error.message
-                  : "Failed to load check-ins",
-              );
-              setStatus("error");
-            }
+            void (async () => {
+              try {
+                setSubmissions(await fetchSubmissions());
+                setStatus("ready");
+              } catch (error) {
+                setErrorMessage(
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to load check-ins",
+                );
+                setStatus("error");
+              }
+            })();
           }}
         >
           Try again

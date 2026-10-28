@@ -13,19 +13,25 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { apiJson } from "@/lib/api/http";
 import {
   EXERCISE_LIBRARY,
   filterExercises,
   getExerciseById,
-  loadFavoriteIds,
   MUSCLE_FILTERS,
-  saveFavoriteIds,
   type Exercise,
   type MuscleGroup,
 } from "@/lib/data/exercises";
 import { cn } from "@/lib/utils";
 
 type Status = "loading" | "ready" | "error";
+
+async function fetchFavoriteIds() {
+  const data = await apiJson<{ favoriteIds: string[] }>(
+    "/api/exercises/favorites",
+  );
+  return data.favoriteIds;
+}
 
 export function ExerciseLibrary() {
   const [status, setStatus] = useState<Status>("loading");
@@ -40,9 +46,9 @@ export function ExerciseLibrary() {
 
   useEffect(() => {
     let cancelled = false;
-    const timer = window.setTimeout(() => {
+    void (async () => {
       try {
-        const ids = loadFavoriteIds();
+        const ids = await fetchFavoriteIds();
         if (cancelled) return;
         setFavoriteIds(ids);
         setStatus("ready");
@@ -53,10 +59,9 @@ export function ExerciseLibrary() {
         );
         setStatus("error");
       }
-    }, 280);
+    })();
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, []);
 
@@ -71,11 +76,28 @@ export function ExerciseLibrary() {
     null;
 
   function toggleFavorite(id: string) {
+    const previous = favoriteIds;
     const next = favoriteIds.includes(id)
       ? favoriteIds.filter((item) => item !== id)
       : [...favoriteIds, id];
     setFavoriteIds(next);
-    saveFavoriteIds(next);
+    void (async () => {
+      try {
+        const data = await apiJson<{ favoriteIds: string[] }>(
+          "/api/exercises/favorites",
+          {
+            method: "PUT",
+            body: JSON.stringify({ favoriteIds: next }),
+          },
+        );
+        setFavoriteIds(data.favoriteIds);
+      } catch (error) {
+        setFavoriteIds(previous);
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to update favorites",
+        );
+      }
+    })();
   }
 
   if (status === "loading") {
@@ -101,17 +123,19 @@ export function ExerciseLibrary() {
           className="mt-4"
           onClick={() => {
             setStatus("loading");
-            try {
-              setFavoriteIds(loadFavoriteIds());
-              setStatus("ready");
-            } catch (error) {
-              setErrorMessage(
-                error instanceof Error
-                  ? error.message
-                  : "Failed to load favorites",
-              );
-              setStatus("error");
-            }
+            void (async () => {
+              try {
+                setFavoriteIds(await fetchFavoriteIds());
+                setStatus("ready");
+              } catch (error) {
+                setErrorMessage(
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to load favorites",
+                );
+                setStatus("error");
+              }
+            })();
           }}
         >
           Try again

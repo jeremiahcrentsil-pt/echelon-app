@@ -1,0 +1,234 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  /// coach | client
+  role         String
+  phase        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workouts               Workout[]
+  nutritionEntries       NutritionEntry[]
+  checkInSubmissions     CheckInSubmission[]
+  monitoringEntries      MonitoringEntry[]
+  mealCompletions        MealCompletion[]
+  mealPlanAssignments    MealPlanAssignment[]
+  workoutPlanAssignments WorkoutPlanAssignment[]
+  exerciseFavorites      ExerciseFavorite[]
+  contentSaved           ContentSaved[]
+  progressPhotos         ProgressPhoto[]
+  contentCreated         ContentItem[]           @relation("ContentAuthor")
+  mealPlansCreated       MealPlan[]              @relation("MealPlanAuthor")
+  workoutPlansCreated    WorkoutPlan[]           @relation("WorkoutPlanAuthor")
+}
+
+model Workout {
+  id              String   @id @default(cuid())
+  userId          String
+  title           String
+  performedAt     DateTime
+  durationMinutes Int?
+  notes           String?
+  /// JSON string: WorkoutExercise[]
+  exercises       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, performedAt])
+}
+
+model NutritionEntry {
+  id           String   @id @default(cuid())
+  userId       String
+  date         String
+  meal         String
+  name         String
+  brand        String?
+  barcode      String?
+  servingLabel String
+  servings     Float
+  /// JSON string: FoodMacros
+  macros       String
+  source       String
+  loggedAt     DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model CheckInSubmission {
+  id          String    @id @default(cuid())
+  userId      String
+  formId      String
+  formTitle   String
+  submittedAt DateTime
+  /// JSON string: Record<string, string>
+  answers     String
+  reviewedAt  DateTime?
+  coachNote   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, submittedAt])
+}
+
+model MonitoringEntry {
+  id           String   @id @default(cuid())
+  userId       String
+  date         String
+  steps        Int
+  waterLiters  Float
+  readiness    Int
+  mood         Int
+  sleepQuality Int
+  notes        String?
+  loggedAt     DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model MealPlan {
+  id             String   @id @default(cuid())
+  title          String
+  coachNote      String
+  calorieTarget  Int
+  proteinTargetG Int
+  assignedAt     DateTime
+  /// JSON string: PlanDay[]
+  days           String
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  createdBy   User?                @relation("MealPlanAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  assignments MealPlanAssignment[]
+}
+
+model MealPlanAssignment {
+  planId String
+  userId String
+
+  plan MealPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([planId, userId])
+}
+
+model MealCompletion {
+  id            String   @id @default(cuid())
+  userId        String
+  mealId        String
+  dateKey       String
+  eaten         Boolean
+  adherenceNote String?
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mealId, dateKey])
+}
+
+model WorkoutPlan {
+  id          String   @id @default(cuid())
+  title       String
+  coachNote   String
+  assignedAt  DateTime
+  /// JSON string: WorkoutSessionTemplate[]
+  sessions    String
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy   User?                   @relation("WorkoutPlanAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  assignments WorkoutPlanAssignment[]
+}
+
+model WorkoutPlanAssignment {
+  planId String
+  userId String
+
+  plan WorkoutPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([planId, userId])
+}
+
+model ExerciseFavorite {
+  userId     String
+  exerciseId String
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, exerciseId])
+}
+
+model ContentItem {
+  id              String   @id
+  title           String
+  summary         String
+  type            String
+  category        String
+  /// JSON string: string[]
+  tags            String
+  postedAt        String
+  durationOrPages String
+  body            String
+  openLabel       String
+  openHref        String?
+  createdById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy User?          @relation("ContentAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  savedBy   ContentSaved[]
+}
+
+model ContentSaved {
+  userId    String
+  contentId String
+  createdAt DateTime @default(now())
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content ContentItem @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, contentId])
+}
+
+model ProgressPhoto {
+  id          String   @id @default(cuid())
+  userId      String
+  date        String
+  pose        String
+  note        String?
+  dataUrl     String
+  width       Int
+  height      Int
+  bytesApprox Int
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
