@@ -15,14 +15,12 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { apiJson } from "@/lib/api/http";
 import {
   CONTENT_CATEGORIES,
   filterContent,
   formatPostedAt,
   getContentById,
-  loadContentLibrary,
-  loadSavedIds,
-  saveSavedIds,
   TYPE_LABELS,
   type ContentCategory,
   type ContentItem,
@@ -33,6 +31,10 @@ import { cn } from "@/lib/utils";
 type Status = "loading" | "ready" | "error";
 
 const TYPE_FILTERS: Array<ContentType | "All"> = ["All", "pdf", "video", "doc"];
+
+async function fetchContent() {
+  return apiJson<{ items: ContentItem[]; savedIds: string[] }>("/api/content");
+}
 
 export function ContentLibrary() {
   const [status, setStatus] = useState<Status>("loading");
@@ -47,14 +49,13 @@ export function ContentLibrary() {
 
   useEffect(() => {
     let cancelled = false;
-    const timer = window.setTimeout(() => {
+    void (async () => {
       try {
-        const items = loadContentLibrary();
-        const ids = loadSavedIds();
+        const data = await fetchContent();
         if (cancelled) return;
-        setLibrary(items);
-        setSavedIds(ids);
-        setSelectedId(items[0]?.id ?? null);
+        setLibrary(data.items);
+        setSavedIds(data.savedIds);
+        setSelectedId(data.items[0]?.id ?? null);
         setStatus("ready");
       } catch (error) {
         if (cancelled) return;
@@ -63,10 +64,9 @@ export function ContentLibrary() {
         );
         setStatus("error");
       }
-    }, 280);
+    })();
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, []);
 
@@ -81,11 +81,29 @@ export function ContentLibrary() {
     null;
 
   function toggleSaved(id: string) {
-    const next = savedIds.includes(id)
-      ? savedIds.filter((item) => item !== id)
-      : [...savedIds, id];
-    setSavedIds(next);
-    saveSavedIds(next);
+    const previous = savedIds;
+    const saving = !savedIds.includes(id);
+    const optimistic = saving
+      ? [...savedIds, id]
+      : savedIds.filter((item) => item !== id);
+    setSavedIds(optimistic);
+    void (async () => {
+      try {
+        const data = await apiJson<{ savedIds: string[] }>("/api/content", {
+          method: "PATCH",
+          body: JSON.stringify({
+            action: saving ? "save" : "unsave",
+            contentId: id,
+          }),
+        });
+        setSavedIds(data.savedIds);
+      } catch (error) {
+        setSavedIds(previous);
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to update saved content",
+        );
+      }
+    })();
   }
 
   if (status === "loading") {
@@ -111,20 +129,22 @@ export function ContentLibrary() {
           className="mt-4"
           onClick={() => {
             setStatus("loading");
-            try {
-              const items = loadContentLibrary();
-              setLibrary(items);
-              setSavedIds(loadSavedIds());
-              setSelectedId(items[0]?.id ?? null);
-              setStatus("ready");
-            } catch (error) {
-              setErrorMessage(
-                error instanceof Error
-                  ? error.message
-                  : "Failed to load content",
-              );
-              setStatus("error");
-            }
+            void (async () => {
+              try {
+                const data = await fetchContent();
+                setLibrary(data.items);
+                setSavedIds(data.savedIds);
+                setSelectedId(data.items[0]?.id ?? null);
+                setStatus("ready");
+              } catch (error) {
+                setErrorMessage(
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to load content",
+                );
+                setStatus("error");
+              }
+            })();
           }}
         >
           Try again

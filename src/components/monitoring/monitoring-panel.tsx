@@ -7,15 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { apiJson } from "@/lib/api/http";
 import {
   draftToEntry,
   emptyDraft,
   entryForDate,
   entryToDraft,
   formatDayLabel,
-  loadEntries,
   recentEntries,
-  saveEntries,
   SCALE_LABELS,
   todayKey,
   type MonitoringDraft,
@@ -24,6 +23,11 @@ import {
 import { cn } from "@/lib/utils";
 
 type Status = "loading" | "ready" | "error";
+
+async function fetchEntries() {
+  const data = await apiJson<{ entries: MonitoringEntry[] }>("/api/monitoring");
+  return data.entries;
+}
 
 export function MonitoringPanel() {
   const [entries, setEntries] = useState<MonitoringEntry[]>([]);
@@ -37,9 +41,9 @@ export function MonitoringPanel() {
 
   useEffect(() => {
     let cancelled = false;
-    const timer = window.setTimeout(() => {
+    void (async () => {
       try {
-        const data = loadEntries();
+        const data = await fetchEntries();
         if (cancelled) return;
         setEntries(data);
         const today = entryForDate(data, date);
@@ -52,10 +56,9 @@ export function MonitoringPanel() {
         );
         setStatus("error");
       }
-    }, 300);
+    })();
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, [date]);
 
@@ -65,23 +68,31 @@ export function MonitoringPanel() {
   );
   const history = useMemo(() => recentEntries(entries, 7), [entries]);
 
-  function persist(next: MonitoringEntry[]) {
-    saveEntries(next);
-    setEntries(next);
-    setStatus("ready");
-  }
-
   function handleSave() {
-    startTransition(() => {
+    startTransition(async () => {
       if (!draft.steps.trim() && !draft.waterLiters.trim()) {
         setFormError("Add at least steps or water for today.");
         return;
       }
       setFormError(null);
       const entry = draftToEntry(draft, date, todayEntry?.id);
-      const withoutToday = entries.filter((item) => item.date !== date);
-      persist([entry, ...withoutToday]);
-      setSaved(true);
+      try {
+        const { entry: savedEntry } = await apiJson<{ entry: MonitoringEntry }>(
+          "/api/monitoring",
+          {
+            method: "POST",
+            body: JSON.stringify({ entry }),
+          },
+        );
+        const withoutToday = entries.filter((item) => item.date !== date);
+        setEntries([savedEntry, ...withoutToday]);
+        setStatus("ready");
+        setSaved(true);
+      } catch (error) {
+        setFormError(
+          error instanceof Error ? error.message : "Failed to save monitoring",
+        );
+      }
     });
   }
 
@@ -109,20 +120,22 @@ export function MonitoringPanel() {
           onClick={() => {
             setStatus("loading");
             setErrorMessage(null);
-            try {
-              const data = loadEntries();
-              setEntries(data);
-              const today = entryForDate(data, date);
-              if (today) setDraft(entryToDraft(today));
-              setStatus("ready");
-            } catch (error) {
-              setErrorMessage(
-                error instanceof Error
-                  ? error.message
-                  : "Failed to load monitoring",
-              );
-              setStatus("error");
-            }
+            void (async () => {
+              try {
+                const data = await fetchEntries();
+                setEntries(data);
+                const today = entryForDate(data, date);
+                if (today) setDraft(entryToDraft(today));
+                setStatus("ready");
+              } catch (error) {
+                setErrorMessage(
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to load monitoring",
+                );
+                setStatus("error");
+              }
+            })();
           }}
         >
           Try again

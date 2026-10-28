@@ -7,19 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MOCK_CLIENTS } from "@/lib/data/clients";
+import { apiJson } from "@/lib/api/http";
+import { fetchClients, type MockClient } from "@/lib/data/clients";
 import {
   createCoachMealPlan,
-  loadStore,
-  saveStore,
+  type MealCompletion,
   type MealPlan,
   type MealPlanStore,
 } from "@/lib/data/meal-plans";
 import {
   createId,
   emptyWorkoutPlanDraft,
-  loadWorkoutPlans,
-  saveWorkoutPlans,
   type WorkoutPlan,
 } from "@/lib/data/workout-plans";
 import { cn } from "@/lib/utils";
@@ -29,6 +27,7 @@ type Status = "loading" | "ready" | "error";
 export function CoachPlansPanel() {
   const [status, setStatus] = useState<Status>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [clients, setClients] = useState<MockClient[]>([]);
   const [mealStore, setMealStore] = useState<MealPlanStore>({
     plans: [],
     completions: [],
@@ -38,20 +37,33 @@ export function CoachPlansPanel() {
   const [mealNote, setMealNote] = useState("Keep protein high; carbs around training.");
   const [mealCals, setMealCals] = useState("2400");
   const [mealProtein, setMealProtein] = useState("190");
-  const [mealClients, setMealClients] = useState<string[]>([MOCK_CLIENTS[1].id]);
+  const [mealClients, setMealClients] = useState<string[]>([]);
   const [workoutDraft, setWorkoutDraft] = useState(emptyWorkoutPlanDraft);
   const [flash, setFlash] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     let cancelled = false;
-    const timer = window.setTimeout(() => {
+    void (async () => {
       try {
-        const meals = loadStore();
-        const workouts = loadWorkoutPlans();
+        const [roster, meals, workouts] = await Promise.all([
+          fetchClients(),
+          apiJson<{ plans: MealPlan[]; completions: MealCompletion[] }>(
+            "/api/meal-plans?scope=all",
+          ),
+          apiJson<{ plans: WorkoutPlan[] }>("/api/workout-plans?scope=all"),
+        ]);
         if (cancelled) return;
-        setMealStore(meals);
-        setWorkoutPlans(workouts);
+        setClients(roster);
+        setMealStore({ plans: meals.plans, completions: meals.completions });
+        setWorkoutPlans(workouts.plans);
+        if (roster[0]) {
+          setMealClients([roster[0].id]);
+          setWorkoutDraft((current) => ({
+            ...current,
+            assignedClientIds: [roster[0].id],
+          }));
+        }
         setStatus("ready");
       } catch (error) {
         if (cancelled) return;
@@ -60,12 +72,15 @@ export function CoachPlansPanel() {
         );
         setStatus("error");
       }
-    }, 280);
+    })();
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, []);
+
+  function clientName(id: string) {
+    return clients.find((client) => client.id === id)?.name ?? id;
+  }
 
   function toggleMealClient(id: string) {
     setMealClients((current) =>
@@ -85,27 +100,39 @@ export function CoachPlansPanel() {
   }
 
   function assignExistingMeal(plan: MealPlan, clientId: string) {
-    startTransition(() => {
-      const nextPlans = mealStore.plans.map((item) => {
-        if (item.id !== plan.id) return item;
-        const assigned = item.assignedClientIds.includes(clientId)
-          ? item.assignedClientIds
-          : [...item.assignedClientIds, clientId];
-        return {
-          ...item,
-          assignedClientIds: assigned,
-          assignedAt: new Date().toISOString(),
-        };
-      });
-      const next = { ...mealStore, plans: nextPlans };
-      saveStore(next);
-      setMealStore(next);
-      setFlash(`Assigned “${plan.title}” to roster update.`);
+    startTransition(async () => {
+      const assignedClientIds = plan.assignedClientIds.includes(clientId)
+        ? plan.assignedClientIds
+        : [...plan.assignedClientIds, clientId];
+      try {
+        const { plan: updated } = await apiJson<{ plan: MealPlan }>(
+          "/api/meal-plans",
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              action: "assign",
+              planId: plan.id,
+              assignedClientIds,
+            }),
+          },
+        );
+        setMealStore((current) => ({
+          ...current,
+          plans: current.plans.map((item) =>
+            item.id === updated.id ? updated : item,
+          ),
+        }));
+        setFlash(`Assigned “${plan.title}” to roster update.`);
+      } catch (error) {
+        setFlash(
+          error instanceof Error ? error.message : "Failed to assign meal plan",
+        );
+      }
     });
   }
 
   function createMealPlan() {
-    startTransition(() => {
+    startTransition(async () => {
       if (mealClients.length === 0) {
         setFlash("Pick at least one client for the meal plan.");
         return;
@@ -117,15 +144,29 @@ export function CoachPlansPanel() {
         proteinTargetG: Number.parseInt(mealProtein, 10) || 150,
         assignedClientIds: mealClients,
       });
-      const next = { ...mealStore, plans: [plan, ...mealStore.plans] };
-      saveStore(next);
-      setMealStore(next);
-      setFlash(`Created and assigned “${plan.title}”.`);
+      try {
+        const { plan: created } = await apiJson<{ plan: MealPlan }>(
+          "/api/meal-plans",
+          {
+            method: "POST",
+            body: JSON.stringify({ plan }),
+          },
+        );
+        setMealStore((current) => ({
+          ...current,
+          plans: [created, ...current.plans],
+        }));
+        setFlash(`Created and assigned “${created.title}”.`);
+      } catch (error) {
+        setFlash(
+          error instanceof Error ? error.message : "Failed to create meal plan",
+        );
+      }
     });
   }
 
   function createWorkoutPlan() {
-    startTransition(() => {
+    startTransition(async () => {
       if (!workoutDraft.title.trim()) {
         setFlash("Add a workout plan title.");
         return;
@@ -145,11 +186,27 @@ export function CoachPlansPanel() {
           exercises: session.exercises.filter((ex) => ex.name.trim()),
         })),
       };
-      const next = [plan, ...workoutPlans];
-      saveWorkoutPlans(next);
-      setWorkoutPlans(next);
-      setWorkoutDraft(emptyWorkoutPlanDraft());
-      setFlash(`Created workout plan “${plan.title}”.`);
+      try {
+        const { plan: created } = await apiJson<{ plan: WorkoutPlan }>(
+          "/api/workout-plans",
+          {
+            method: "POST",
+            body: JSON.stringify({ plan }),
+          },
+        );
+        setWorkoutPlans((current) => [created, ...current]);
+        setWorkoutDraft({
+          ...emptyWorkoutPlanDraft(),
+          assignedClientIds: clients[0] ? [clients[0].id] : [],
+        });
+        setFlash(`Created workout plan “${created.title}”.`);
+      } catch (error) {
+        setFlash(
+          error instanceof Error
+            ? error.message
+            : "Failed to create workout plan",
+        );
+      }
     });
   }
 
@@ -185,7 +242,7 @@ export function CoachPlansPanel() {
         </h1>
         <p className="mt-2 max-w-xl text-sm text-muted-foreground sm:text-base">
           Create or assign meal and workout plans. Clients see them under Meal
-          plans and Workouts for the selected roster member.
+          plans and Workouts for their account.
         </p>
       </header>
 
@@ -207,15 +264,10 @@ export function CoachPlansPanel() {
               <p className="font-medium">{plan.title}</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {plan.calorieTarget} kcal · {plan.proteinTargetG}g protein · assigned to{" "}
-                {plan.assignedClientIds
-                  .map(
-                    (id) =>
-                      MOCK_CLIENTS.find((client) => client.id === id)?.name ?? id,
-                  )
-                  .join(", ") || "nobody"}
+                {plan.assignedClientIds.map(clientName).join(", ") || "nobody"}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {MOCK_CLIENTS.map((client) => (
+                {clients.map((client) => (
                   <Button
                     key={client.id}
                     size="sm"
@@ -269,7 +321,11 @@ export function CoachPlansPanel() {
             />
           </div>
         </div>
-        <ClientChips selected={mealClients} onToggle={toggleMealClient} />
+        <ClientChips
+          clients={clients}
+          selected={mealClients}
+          onToggle={toggleMealClient}
+        />
         <Button className="mt-4" onClick={createMealPlan} disabled={isPending}>
           <Plus className="size-4" />
           Create & assign meal plan
@@ -404,6 +460,7 @@ export function CoachPlansPanel() {
           ))}
         </div>
         <ClientChips
+          clients={clients}
           selected={workoutDraft.assignedClientIds}
           onToggle={toggleWorkoutClient}
         />
@@ -420,12 +477,7 @@ export function CoachPlansPanel() {
               <li key={plan.id} className="text-sm text-muted-foreground">
                 <span className="font-medium text-foreground">{plan.title}</span>
                 {" · "}
-                {plan.assignedClientIds
-                  .map(
-                    (id) =>
-                      MOCK_CLIENTS.find((client) => client.id === id)?.name ?? id,
-                  )
-                  .join(", ")}
+                {plan.assignedClientIds.map(clientName).join(", ")}
               </li>
             ))}
           </ul>
@@ -436,9 +488,11 @@ export function CoachPlansPanel() {
 }
 
 function ClientChips({
+  clients,
   selected,
   onToggle,
 }: {
+  clients: MockClient[];
   selected: string[];
   onToggle: (id: string) => void;
 }) {
@@ -446,7 +500,7 @@ function ClientChips({
     <div className="mt-4 space-y-2">
       <Label>Assign to</Label>
       <div className="flex flex-wrap gap-2">
-        {MOCK_CLIENTS.map((client) => (
+        {clients.map((client) => (
           <button
             key={client.id}
             type="button"

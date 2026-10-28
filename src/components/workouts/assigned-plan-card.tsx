@@ -3,23 +3,26 @@
 import { useEffect, useState } from "react";
 import { Dumbbell } from "lucide-react";
 
-import { loadActiveClientId } from "@/lib/data/clients";
-import {
-  loadWorkoutPlans,
-  plansForClient,
-  type WorkoutPlan,
-} from "@/lib/data/workout-plans";
+import { apiJson } from "@/lib/api/http";
+import { type WorkoutPlan } from "@/lib/data/workout-plans";
 
 export function AssignedPlanCard() {
   const [plans, setPlans] = useState<WorkoutPlan[]>([]);
 
   useEffect(() => {
-    try {
-      const clientId = loadActiveClientId();
-      setPlans(plansForClient(loadWorkoutPlans(), clientId));
-    } catch {
-      setPlans([]);
-    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await apiJson<{ plans: WorkoutPlan[] }>("/api/workout-plans");
+        if (cancelled) return;
+        setPlans(data.plans);
+      } catch {
+        if (!cancelled) setPlans([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (plans.length === 0) return null;
