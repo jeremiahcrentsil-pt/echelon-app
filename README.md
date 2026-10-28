@@ -37,4 +37,8 @@ Open [http://127.0.0.1:43127](http://127.0.0.1:43127). The home route redirects 
 - **Meal plans**: assigned weekly plan with daily meals/macros; mark eaten + adherence notes
 - **Exercises**: searchable/filterable library with cues, demo placeholders, favorites
 - **Content**: coach PDFs/videos/docs with categories, detail/open, optional saved items
-- Placeholder page for Progress photos
+- **Progress photos**: dated front/side/back tracker with compressed localStorage images, timeline + compare
+
+## Client MVP
+
+All nine client modules from the brief are implemented with mock/localStorage data. Coach tooling, auth, and a real database are intentionally out of scope for this MVP.
