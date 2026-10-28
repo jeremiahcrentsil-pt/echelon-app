@@ -26,6 +26,10 @@ export type CheckInSubmission = {
   formTitle: string;
   submittedAt: string;
   answers: Record<string, string>;
+  clientId: string;
+  clientName: string;
+  reviewedAt?: string;
+  coachNote?: string;
 };
 
 const STORAGE_KEY = "echelon.checkins.v1";
@@ -135,14 +139,43 @@ export function emptyAnswers(form: CheckInFormTemplate): Record<string, string> 
   return Object.fromEntries(form.fields.map((field) => [field.id, ""]));
 }
 
+function seedSubmissions(): CheckInSubmission[] {
+  return [
+    {
+      id: "ci-seed-alex",
+      formId: "weekly-check-in",
+      formTitle: "Weekly check-in",
+      submittedAt: new Date(Date.now() - 1000 * 60 * 60 * 18).toISOString(),
+      clientId: "client-alex",
+      clientName: "Alex Rivera",
+      answers: {
+        weight: "176.2",
+        energy: "7",
+        sleep: "7",
+        training_adherence: "Most sessions",
+        nutrition_adherence: "Mostly on",
+        notes: "Travel Friday — logged a hotel gym session.",
+      },
+    },
+  ];
+}
+
 export function loadSubmissions(): CheckInSubmission[] {
-  if (!canUseStorage()) return [];
+  if (!canUseStorage()) return seedSubmissions();
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) {
+      const seeded = seedSubmissions();
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
+      return seeded;
+    }
     const parsed = JSON.parse(raw) as CheckInSubmission[];
     if (!Array.isArray(parsed)) throw new Error("Invalid check-in store");
-    return parsed;
+    return parsed.map((item) => ({
+      ...item,
+      clientId: item.clientId || "client-alex",
+      clientName: item.clientName || "Alex Rivera",
+    }));
   } catch {
     throw new Error("Could not load check-ins from local storage");
   }

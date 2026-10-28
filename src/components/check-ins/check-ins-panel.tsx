@@ -19,6 +19,7 @@ import {
   type CheckInFormTemplate,
   type CheckInSubmission,
 } from "@/lib/data/check-ins";
+import { getClientById, loadActiveClientId } from "@/lib/data/clients";
 import { cn } from "@/lib/utils";
 
 type Status = "loading" | "ready" | "error";
@@ -84,12 +85,16 @@ export function CheckInsPanel() {
         }
       }
       setFormError(null);
+      const clientId = loadActiveClientId();
+      const client = getClientById(clientId);
       const submission: CheckInSubmission = {
         id: createId("ci"),
         formId: activeForm.id,
         formTitle: activeForm.title,
         submittedAt: new Date().toISOString(),
         answers: { ...answers },
+        clientId,
+        clientName: client?.name ?? "Client",
       };
       persist([submission, ...submissions]);
       setAnswers(emptyAnswers(activeForm));

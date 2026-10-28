@@ -23,6 +23,7 @@ export type ContentItem = {
 };
 
 const SAVED_KEY = "echelon.content.saved.v1";
+const POSTS_KEY = "echelon.content.posts.v1";
 
 export const CONTENT_CATEGORIES: Array<ContentCategory | "All"> = [
   "All",
@@ -158,11 +159,38 @@ export function saveSavedIds(ids: string[]) {
   window.localStorage.setItem(SAVED_KEY, JSON.stringify(ids));
 }
 
-export function getContentById(id: string) {
-  return CONTENT_LIBRARY.find((item) => item.id === id) ?? null;
+export function loadCoachPosts(): ContentItem[] {
+  if (!canUseStorage()) return [];
+  try {
+    const raw = window.localStorage.getItem(POSTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as ContentItem[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    throw new Error("Could not load coach content posts");
+  }
+}
+
+export function saveCoachPosts(posts: ContentItem[]) {
+  if (!canUseStorage()) return;
+  window.localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+}
+
+/** Seed catalog + coach-posted items (newest coach posts first). */
+export function loadContentLibrary(): ContentItem[] {
+  const posts = loadCoachPosts();
+  const seedIds = new Set(CONTENT_LIBRARY.map((item) => item.id));
+  const uniquePosts = posts.filter((item) => !seedIds.has(item.id));
+  return [...uniquePosts, ...CONTENT_LIBRARY];
+}
+
+export function getContentById(id: string, library?: ContentItem[]) {
+  const source = library ?? loadContentLibrary();
+  return source.find((item) => item.id === id) ?? null;
 }
 
 export function filterContent(
+  library: ContentItem[],
   query: string,
   category: ContentCategory | "All",
   type: ContentType | "All",
@@ -170,7 +198,7 @@ export function filterContent(
   savedIds: string[],
 ) {
   const q = query.trim().toLowerCase();
-  return CONTENT_LIBRARY.filter((item) => {
+  return library.filter((item) => {
     if (savedOnly && !savedIds.includes(item.id)) return false;
     if (category !== "All" && item.category !== category) return false;
     if (type !== "All" && item.type !== type) return false;
@@ -181,6 +209,10 @@ export function filterContent(
       item.tags.some((tag) => tag.toLowerCase().includes(q))
     );
   });
+}
+
+export function createId(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 export function formatPostedAt(isoDate: string) {

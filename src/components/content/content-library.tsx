@@ -17,10 +17,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   CONTENT_CATEGORIES,
-  CONTENT_LIBRARY,
   filterContent,
   formatPostedAt,
   getContentById,
+  loadContentLibrary,
   loadSavedIds,
   saveSavedIds,
   TYPE_LABELS,
@@ -37,27 +37,29 @@ const TYPE_FILTERS: Array<ContentType | "All"> = ["All", "pdf", "video", "doc"];
 export function ContentLibrary() {
   const [status, setStatus] = useState<Status>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [library, setLibrary] = useState<ContentItem[]>([]);
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<ContentCategory | "All">("All");
   const [type, setType] = useState<ContentType | "All">("All");
   const [savedOnly, setSavedOnly] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    CONTENT_LIBRARY[0]?.id ?? null,
-  );
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(() => {
       try {
+        const items = loadContentLibrary();
         const ids = loadSavedIds();
         if (cancelled) return;
+        setLibrary(items);
         setSavedIds(ids);
+        setSelectedId(items[0]?.id ?? null);
         setStatus("ready");
       } catch (error) {
         if (cancelled) return;
         setErrorMessage(
-          error instanceof Error ? error.message : "Failed to load saved content",
+          error instanceof Error ? error.message : "Failed to load content",
         );
         setStatus("error");
       }
@@ -69,12 +71,14 @@ export function ContentLibrary() {
   }, []);
 
   const filtered = useMemo(
-    () => filterContent(query, category, type, savedOnly, savedIds),
-    [query, category, type, savedOnly, savedIds],
+    () => filterContent(library, query, category, type, savedOnly, savedIds),
+    [library, query, category, type, savedOnly, savedIds],
   );
 
   const selected =
-    (selectedId ? getContentById(selectedId) : null) ?? filtered[0] ?? null;
+    (selectedId ? getContentById(selectedId, library) : null) ??
+    filtered[0] ??
+    null;
 
   function toggleSaved(id: string) {
     const next = savedIds.includes(id)
@@ -108,13 +112,16 @@ export function ContentLibrary() {
           onClick={() => {
             setStatus("loading");
             try {
+              const items = loadContentLibrary();
+              setLibrary(items);
               setSavedIds(loadSavedIds());
+              setSelectedId(items[0]?.id ?? null);
               setStatus("ready");
             } catch (error) {
               setErrorMessage(
                 error instanceof Error
                   ? error.message
-                  : "Failed to load saved content",
+                  : "Failed to load content",
               );
               setStatus("error");
             }

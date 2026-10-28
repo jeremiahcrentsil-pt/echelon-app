@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AssignedPlanCard } from "@/components/workouts/assigned-plan-card";
 import {
   createId,
   draftToWorkout,
@@ -170,6 +171,8 @@ export function WorkoutLogger() {
           {composerOpen ? "Close logger" : "Log workout"}
         </Button>
       </header>
+
+      <AssignedPlanCard />
 
       {composerOpen && (
         <section className="mb-8 rounded-2xl border border-border/70 bg-card/70 p-4 shadow-[0_0_0_1px_oklch(0.78_0.12_175/8%)] backdrop-blur-sm sm:p-6 animate-rise">

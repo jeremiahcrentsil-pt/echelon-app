@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { loadActiveClientId } from "@/lib/data/clients";
 import {
   dayTotals,
   eatenCountForDay,
@@ -19,6 +20,7 @@ import {
   getCompletion,
   loadStore,
   planDayIndexForDate,
+  plansForClient,
   saveStore,
   SLOT_LABELS,
   todayKey,
@@ -42,15 +44,20 @@ export function MealPlansPanel() {
   const [isPending, startTransition] = useTransition();
   const dateKey = todayKey();
 
+  const [clientId, setClientId] = useState("client-alex");
+
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(() => {
       try {
+        const active = loadActiveClientId();
         const data = loadStore();
         if (cancelled) return;
+        setClientId(active);
         setStore(data);
-        setSelectedPlanId(data.plans[0]?.id ?? null);
-        setStatus(data.plans.length === 0 ? "empty" : "ready");
+        const mine = plansForClient(data.plans, active);
+        setSelectedPlanId(mine[0]?.id ?? null);
+        setStatus(mine.length === 0 ? "empty" : "ready");
       } catch (error) {
         if (cancelled) return;
         setErrorMessage(
@@ -65,9 +72,14 @@ export function MealPlansPanel() {
     };
   }, []);
 
+  const myPlans = useMemo(
+    () => plansForClient(store.plans, clientId),
+    [store.plans, clientId],
+  );
+
   const plan = useMemo(
-    () => store.plans.find((item) => item.id === selectedPlanId) ?? store.plans[0] ?? null,
-    [store.plans, selectedPlanId],
+    () => myPlans.find((item) => item.id === selectedPlanId) ?? myPlans[0] ?? null,
+    [myPlans, selectedPlanId],
   );
 
   const day = useMemo(
@@ -80,7 +92,8 @@ export function MealPlansPanel() {
   function persist(next: MealPlanStore) {
     saveStore(next);
     setStore(next);
-    setStatus(next.plans.length === 0 ? "empty" : "ready");
+    const mine = plansForClient(next.plans, clientId);
+    setStatus(mine.length === 0 ? "empty" : "ready");
   }
 
   function toggleEaten(meal: PlannedMeal) {
@@ -145,10 +158,13 @@ export function MealPlansPanel() {
             setStatus("loading");
             setErrorMessage(null);
             try {
+              const active = loadActiveClientId();
               const data = loadStore();
+              setClientId(active);
               setStore(data);
-              setSelectedPlanId(data.plans[0]?.id ?? null);
-              setStatus(data.plans.length === 0 ? "empty" : "ready");
+              const mine = plansForClient(data.plans, active);
+              setSelectedPlanId(mine[0]?.id ?? null);
+              setStatus(mine.length === 0 ? "empty" : "ready");
             } catch (error) {
               setErrorMessage(
                 error instanceof Error
@@ -175,7 +191,8 @@ export function MealPlansPanel() {
             No plans assigned
           </h2>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-            When Jeremiah assigns a meal plan, it will show up here for the week.
+            When Jeremiah assigns a meal plan to this client, it will show up here.
+            Switch clients in the bar above or assign one from Coach tools.
           </p>
         </div>
       </div>
@@ -188,9 +205,9 @@ export function MealPlansPanel() {
     <div className="mx-auto max-w-3xl">
       <Header />
 
-      {store.plans.length > 1 && (
+      {myPlans.length > 1 && (
         <div className="mb-4 flex flex-wrap gap-2 animate-rise">
-          {store.plans.map((item) => (
+          {myPlans.map((item) => (
             <button
               key={item.id}
               type="button"

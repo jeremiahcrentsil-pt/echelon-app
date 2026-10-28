@@ -39,6 +39,8 @@ Open [http://127.0.0.1:43127](http://127.0.0.1:43127). The home route redirects 
 - **Content**: coach PDFs/videos/docs with categories, detail/open, optional saved items
 - **Progress photos**: dated front/side/back tracker with compressed localStorage images, timeline + compare
 
-## Client MVP
+## Client + coach MVP
 
-All nine client modules from the brief are implemented with mock/localStorage data. Coach tooling, auth, and a real database are intentionally out of scope for this MVP.
+Nine client modules plus a **Coach** area at `/coach` (assign plans, post content, review check-ins) using shared mock/localStorage data and two seeded clients. Auth and a real database are still out of scope.
+
+Open [http://127.0.0.1:43127/coach](http://127.0.0.1:43127/coach) for coach tools; use the “Viewing as” switcher in the client shell to demo assignments.

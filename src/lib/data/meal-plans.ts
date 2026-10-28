@@ -26,6 +26,8 @@ export type MealPlan = {
   calorieTarget: number;
   proteinTargetG: number;
   assignedAt: string;
+  /** Mock clients this plan is assigned to (coach tools). */
+  assignedClientIds: string[];
   days: PlanDay[];
 };
 
@@ -82,6 +84,10 @@ function meal(
   return { id, slot, name, description, calories, proteinG, carbsG, fatG, notes };
 }
 
+export function createId(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 function seedPlan(): MealPlan {
   return {
     id: "plan-cut-a",
@@ -91,6 +97,7 @@ function seedPlan(): MealPlan {
     calorieTarget: 2200,
     proteinTargetG: 180,
     assignedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
+    assignedClientIds: ["client-alex"],
     days: [
       {
         dayIndex: 0,
@@ -191,12 +198,54 @@ export function loadStore(): MealPlanStore {
       throw new Error("Invalid meal plan store");
     }
     return {
-      plans: parsed.plans,
+      plans: parsed.plans.map(normalizePlan),
       completions: Array.isArray(parsed.completions) ? parsed.completions : [],
     };
   } catch {
     throw new Error("Could not load meal plans from local storage");
   }
+}
+
+function normalizePlan(plan: MealPlan): MealPlan {
+  return {
+    ...plan,
+    assignedClientIds:
+      Array.isArray(plan.assignedClientIds) && plan.assignedClientIds.length > 0
+        ? plan.assignedClientIds
+        : ["client-alex"],
+  };
+}
+
+export function plansForClient(plans: MealPlan[], clientId: string) {
+  return plans.filter((plan) => plan.assignedClientIds.includes(clientId));
+}
+
+/** Lightweight coach-created plan: one representative day copied from the seed shape. */
+export function createCoachMealPlan(input: {
+  title: string;
+  coachNote: string;
+  calorieTarget: number;
+  proteinTargetG: number;
+  assignedClientIds: string[];
+}): MealPlan {
+  const base = seedPlan();
+  return {
+    ...base,
+    id: createId("plan"),
+    title: input.title.trim() || "Untitled meal plan",
+    coachNote: input.coachNote.trim(),
+    calorieTarget: input.calorieTarget,
+    proteinTargetG: input.proteinTargetG,
+    assignedClientIds: input.assignedClientIds,
+    assignedAt: new Date().toISOString(),
+    days: base.days.map((day) => ({
+      ...day,
+      meals: day.meals.map((mealItem) => ({
+        ...mealItem,
+        id: createId("m"),
+      })),
+    })),
+  };
 }
 
 export function saveStore(store: MealPlanStore) {
