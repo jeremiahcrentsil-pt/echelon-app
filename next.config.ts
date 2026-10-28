@@ -1,9 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // Cache Components off for MVP — workout client state hydrates more reliably without it.
   turbopack: {
     rules: {
       "*.css": {

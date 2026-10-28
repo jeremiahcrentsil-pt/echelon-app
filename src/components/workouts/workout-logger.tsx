@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { AlertCircle, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -21,24 +21,7 @@ import {
 
 type Status = "loading" | "ready" | "error" | "empty";
 
-function WorkoutLoggerLoading() {
-  return (
-    <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-muted-foreground animate-fade">
-      <Loader2 className="size-6 animate-spin text-primary" aria-hidden />
-      <p className="text-sm">Loading your sessions…</p>
-    </div>
-  );
-}
-
 export function WorkoutLogger() {
-  return (
-    <Suspense fallback={<WorkoutLoggerLoading />}>
-      <WorkoutLoggerInner />
-    </Suspense>
-  );
-}
-
-function WorkoutLoggerInner() {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [status, setStatus] = useState<Status>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
