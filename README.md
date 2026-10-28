@@ -35,4 +35,6 @@ Open [http://127.0.0.1:43127](http://127.0.0.1:43127). The home route redirects 
 - **Check-ins**: coach-assigned forms (weight, energy, sleep, adherence, notes) with submission history
 - **Monitoring**: short daily pulse (steps, water, mood/readiness/sleep) with today status + recent history
 - **Meal plans**: assigned weekly plan with daily meals/macros; mark eaten + adherence notes
-- Placeholder pages for Exercises, Content, and Progress photos
+- **Exercises**: searchable/filterable library with cues, demo placeholders, favorites
+- **Content**: coach PDFs/videos/docs with categories, detail/open, optional saved items
+- Placeholder page for Progress photos
