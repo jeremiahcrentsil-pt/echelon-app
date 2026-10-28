@@ -32,4 +32,6 @@ Open [http://127.0.0.1:43127](http://127.0.0.1:43127). The home route redirects 
 - **Workouts**: list seeded sessions, log a new workout (exercises, sets, reps, notes), empty/loading/error-friendly UI
 - **Nutrition**: daily food log with calories/macros, meal grouping, localStorage persistence
 - **Scan**: barcode lookup via Open Food Facts (+ mock fallback), optional camera, add to today’s nutrition log
-- Placeholder pages for Check-ins, Meal plans, Exercises, Content, Monitoring, and Progress photos
+- **Check-ins**: coach-assigned forms (weight, energy, sleep, adherence, notes) with submission history
+- **Monitoring**: short daily pulse (steps, water, mood/readiness/sleep) with today status + recent history
+- Placeholder pages for Meal plans, Exercises, Content, and Progress photos
