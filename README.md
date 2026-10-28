@@ -30,4 +30,6 @@ Open [http://127.0.0.1:43127](http://127.0.0.1:43127). The home route redirects 
 
 - Mobile-friendly **Echelon** shell with nav for all nine client modules
 - **Workouts**: list seeded sessions, log a new workout (exercises, sets, reps, notes), empty/loading/error-friendly UI
-- Placeholder pages for Nutrition, Scan, Check-ins, Meal plans, Exercises, Content, Monitoring, and Progress photos
+- **Nutrition**: daily food log with calories/macros, meal grouping, localStorage persistence
+- **Scan**: barcode lookup via Open Food Facts (+ mock fallback), optional camera, add to today’s nutrition log
+- Placeholder pages for Check-ins, Meal plans, Exercises, Content, Monitoring, and Progress photos
