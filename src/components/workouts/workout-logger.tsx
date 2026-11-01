@@ -8,19 +8,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AssignedPlanCard } from "@/components/workouts/assigned-plan-card";
+import { apiJson } from "@/lib/api/http";
 import {
   createId,
   draftToWorkout,
   emptyDraft,
   formatWorkoutDate,
-  loadWorkouts,
-  saveWorkouts,
   workoutSummary,
   type Workout,
   type WorkoutDraft,
 } from "@/lib/data/workouts";
 
 type Status = "loading" | "ready" | "error" | "empty";
+
+async function fetchWorkouts() {
+  const data = await apiJson<{ workouts: Workout[] }>("/api/workouts");
+  return data.workouts;
+}
 
 export function WorkoutLogger() {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
@@ -32,9 +36,9 @@ export function WorkoutLogger() {
 
   useEffect(() => {
     let cancelled = false;
-    const timer = window.setTimeout(() => {
+    void (async () => {
       try {
-        const data = loadWorkouts();
+        const data = await fetchWorkouts();
         if (cancelled) return;
         setWorkouts(data);
         setStatus(data.length === 0 ? "empty" : "ready");
@@ -45,19 +49,12 @@ export function WorkoutLogger() {
         );
         setStatus("error");
       }
-    }, 350);
+    })();
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, []);
-
-  function persist(next: Workout[]) {
-    saveWorkouts(next);
-    setWorkouts(next);
-    setStatus(next.length === 0 ? "empty" : "ready");
-  }
 
   function updateExercise(
     exerciseId: string,
@@ -91,16 +88,31 @@ export function WorkoutLogger() {
   }
 
   function handleSave() {
-    startTransition(() => {
+    startTransition(async () => {
       const workout = draftToWorkout(draft);
       if (workout.exercises.length === 0) {
         setErrorMessage("Add at least one exercise with reps before saving.");
         return;
       }
       setErrorMessage(null);
-      persist([workout, ...workouts]);
-      setDraft(emptyDraft());
-      setComposerOpen(false);
+      try {
+        const { workout: created } = await apiJson<{ workout: Workout }>(
+          "/api/workouts",
+          {
+            method: "POST",
+            body: JSON.stringify({ workout }),
+          },
+        );
+        const next = [created, ...workouts];
+        setWorkouts(next);
+        setStatus(next.length === 0 ? "empty" : "ready");
+        setDraft(emptyDraft());
+        setComposerOpen(false);
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to save workout",
+        );
+      }
     });
   }
 
@@ -126,16 +138,18 @@ export function WorkoutLogger() {
           onClick={() => {
             setStatus("loading");
             setErrorMessage(null);
-            try {
-              const data = loadWorkouts();
-              setWorkouts(data);
-              setStatus(data.length === 0 ? "empty" : "ready");
-            } catch (error) {
-              setErrorMessage(
-                error instanceof Error ? error.message : "Failed to load workouts",
-              );
-              setStatus("error");
-            }
+            void (async () => {
+              try {
+                const data = await fetchWorkouts();
+                setWorkouts(data);
+                setStatus(data.length === 0 ? "empty" : "ready");
+              } catch (error) {
+                setErrorMessage(
+                  error instanceof Error ? error.message : "Failed to load workouts",
+                );
+                setStatus("error");
+              }
+            })();
           }}
         >
           Try again

@@ -7,16 +7,15 @@ import { AlertCircle, Loader2, Plus, ScanBarcode, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { apiJson } from "@/lib/api/http";
 import {
   draftToEntry,
   emptyDraft,
   entriesForDate,
   formatDayLabel,
   formatMacro,
-  loadEntries,
   MEAL_LABELS,
   MEAL_ORDER,
-  saveEntries,
   sumMacros,
   todayKey,
   type FoodEntry,
@@ -25,6 +24,11 @@ import {
 import { cn } from "@/lib/utils";
 
 type Status = "loading" | "ready" | "error" | "empty";
+
+async function fetchEntries() {
+  const data = await apiJson<{ entries: FoodEntry[] }>("/api/nutrition");
+  return data.entries;
+}
 
 export function NutritionLogger() {
   const [entries, setEntries] = useState<FoodEntry[]>([]);
@@ -37,9 +41,9 @@ export function NutritionLogger() {
 
   useEffect(() => {
     let cancelled = false;
-    const timer = window.setTimeout(() => {
+    void (async () => {
       try {
-        const data = loadEntries();
+        const data = await fetchEntries();
         if (cancelled) return;
         setEntries(data);
         const day = entriesForDate(data, date);
@@ -51,11 +55,10 @@ export function NutritionLogger() {
         );
         setStatus("error");
       }
-    }, 320);
+    })();
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, [date]);
 
@@ -65,29 +68,52 @@ export function NutritionLogger() {
   );
   const totals = useMemo(() => sumMacros(dayEntries), [dayEntries]);
 
-  function persist(next: FoodEntry[]) {
-    saveEntries(next);
+  function applyEntries(next: FoodEntry[]) {
     setEntries(next);
     const day = entriesForDate(next, date);
     setStatus(day.length === 0 ? "empty" : "ready");
   }
 
   function handleSave() {
-    startTransition(() => {
+    startTransition(async () => {
       if (!draft.name.trim()) {
         setErrorMessage("Add a food name before saving.");
         return;
       }
       setErrorMessage(null);
       const entry = draftToEntry(draft, date);
-      persist([entry, ...entries]);
-      setDraft(emptyDraft(draft.meal));
-      setComposerOpen(false);
+      try {
+        const { entry: created } = await apiJson<{ entry: FoodEntry }>(
+          "/api/nutrition",
+          {
+            method: "POST",
+            body: JSON.stringify({ entry }),
+          },
+        );
+        applyEntries([created, ...entries]);
+        setDraft(emptyDraft(draft.meal));
+        setComposerOpen(false);
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to save food entry",
+        );
+      }
     });
   }
 
   function removeEntry(id: string) {
-    persist(entries.filter((entry) => entry.id !== id));
+    startTransition(async () => {
+      try {
+        await apiJson<{ ok: boolean }>(`/api/nutrition?id=${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
+        applyEntries(entries.filter((entry) => entry.id !== id));
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to remove entry",
+        );
+      }
+    });
   }
 
   if (status === "loading") {
@@ -114,20 +140,22 @@ export function NutritionLogger() {
           onClick={() => {
             setStatus("loading");
             setErrorMessage(null);
-            try {
-              const data = loadEntries();
-              setEntries(data);
-              setStatus(
-                entriesForDate(data, date).length === 0 ? "empty" : "ready",
-              );
-            } catch (error) {
-              setErrorMessage(
-                error instanceof Error
-                  ? error.message
-                  : "Failed to load nutrition log",
-              );
-              setStatus("error");
-            }
+            void (async () => {
+              try {
+                const data = await fetchEntries();
+                setEntries(data);
+                setStatus(
+                  entriesForDate(data, date).length === 0 ? "empty" : "ready",
+                );
+              } catch (error) {
+                setErrorMessage(
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to load nutrition log",
+                );
+                setStatus("error");
+              }
+            })();
           }}
         >
           Try again

@@ -6,17 +6,23 @@ import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { apiJson } from "@/lib/api/http";
 import {
   formatSubmittedAt,
   getFormById,
-  loadSubmissions,
-  saveSubmissions,
   summarizeAnswers,
   type CheckInSubmission,
 } from "@/lib/data/check-ins";
 import { cn } from "@/lib/utils";
 
 type Status = "loading" | "ready" | "error";
+
+async function fetchAllSubmissions() {
+  const data = await apiJson<{ submissions: CheckInSubmission[] }>(
+    "/api/check-ins?scope=all",
+  );
+  return data.submissions;
+}
 
 export function CoachCheckInsPanel() {
   const [status, setStatus] = useState<Status>("loading");
@@ -29,9 +35,9 @@ export function CoachCheckInsPanel() {
 
   useEffect(() => {
     let cancelled = false;
-    const timer = window.setTimeout(() => {
+    void (async () => {
       try {
-        const data = loadSubmissions();
+        const data = await fetchAllSubmissions();
         if (cancelled) return;
         setSubmissions(data);
         setSelectedId(data[0]?.id ?? null);
@@ -44,10 +50,9 @@ export function CoachCheckInsPanel() {
         );
         setStatus("error");
       }
-    }, 280);
+    })();
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, []);
 
@@ -62,38 +67,59 @@ export function CoachCheckInsPanel() {
     setFlash(null);
   }
 
-  function persist(next: CheckInSubmission[]) {
-    saveSubmissions(next);
-    setSubmissions(next);
+  function applySubmission(updated: CheckInSubmission) {
+    setSubmissions((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item)),
+    );
   }
 
   function markReviewed() {
     if (!selected) return;
-    startTransition(() => {
-      const next = submissions.map((item) =>
-        item.id === selected.id
-          ? {
-              ...item,
-              reviewedAt: new Date().toISOString(),
-              coachNote: noteDraft.trim() || item.coachNote,
-            }
-          : item,
-      );
-      persist(next);
-      setFlash("Marked reviewed.");
+    startTransition(async () => {
+      try {
+        const { submission } = await apiJson<{ submission: CheckInSubmission }>(
+          "/api/check-ins",
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              id: selected.id,
+              coachNote: noteDraft.trim() || selected.coachNote,
+              reviewed: true,
+            }),
+          },
+        );
+        applySubmission(submission);
+        setFlash("Marked reviewed.");
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to mark reviewed",
+        );
+      }
     });
   }
 
   function saveNote() {
     if (!selected) return;
-    startTransition(() => {
-      const next = submissions.map((item) =>
-        item.id === selected.id
-          ? { ...item, coachNote: noteDraft.trim() || undefined }
-          : item,
-      );
-      persist(next);
-      setFlash("Coach note saved.");
+    startTransition(async () => {
+      try {
+        const { submission } = await apiJson<{ submission: CheckInSubmission }>(
+          "/api/check-ins",
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              id: selected.id,
+              coachNote: noteDraft.trim() || undefined,
+              reviewed: Boolean(selected.reviewedAt),
+            }),
+          },
+        );
+        applySubmission(submission);
+        setFlash("Coach note saved.");
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to save note",
+        );
+      }
     });
   }
 

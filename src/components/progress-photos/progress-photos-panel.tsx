@@ -13,19 +13,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { apiJson } from "@/lib/api/http";
 import {
   compressImageFile,
   createId,
-  ensureSeededPhotos,
   estimateStoreBytes,
   formatPhotoDate,
   groupByDate,
-  loadPhotos,
   MAX_PHOTOS,
   MAX_STORE_BYTES,
   POSE_LABELS,
   POSES,
-  savePhotos,
   todayKey,
   type PhotoPose,
   type ProgressPhoto,
@@ -34,6 +32,11 @@ import { cn } from "@/lib/utils";
 
 type Status = "loading" | "ready" | "error" | "empty";
 type ViewMode = "timeline" | "compare";
+
+async function fetchPhotos() {
+  const data = await apiJson<{ photos: ProgressPhoto[] }>("/api/progress-photos");
+  return data.photos;
+}
 
 export function ProgressPhotosPanel() {
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
@@ -54,9 +57,9 @@ export function ProgressPhotosPanel() {
 
   useEffect(() => {
     let cancelled = false;
-    const timer = window.setTimeout(() => {
+    void (async () => {
       try {
-        const data = ensureSeededPhotos();
+        const data = await fetchPhotos();
         if (cancelled) return;
         setPhotos(data);
         setStatus(data.length === 0 ? "empty" : "ready");
@@ -74,10 +77,9 @@ export function ProgressPhotosPanel() {
         );
         setStatus("error");
       }
-    }, 300);
+    })();
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, []);
 
@@ -85,12 +87,6 @@ export function ProgressPhotosPanel() {
   const storeKb = Math.round(estimateStoreBytes(photos) / 1024);
   const photoA = photos.find((photo) => photo.id === compareA) ?? null;
   const photoB = photos.find((photo) => photo.id === compareB) ?? null;
-
-  function persist(next: ProgressPhoto[]) {
-    savePhotos(next);
-    setPhotos(next);
-    setStatus(next.length === 0 ? "empty" : "ready");
-  }
 
   async function onFilePicked(file: File | null) {
     if (!file) return;
@@ -109,7 +105,7 @@ export function ProgressPhotosPanel() {
   }
 
   function handleSave() {
-    startTransition(() => {
+    startTransition(async () => {
       if (!pendingFile) {
         setFormError("Choose a photo first.");
         return;
@@ -137,29 +133,52 @@ export function ProgressPhotosPanel() {
         return;
       }
       try {
-        persist(next);
-      } catch {
-        setFormError("Browser storage rejected the save. Free space by deleting photos.");
-        return;
+        const { photo: created } = await apiJson<{ photo: ProgressPhoto }>(
+          "/api/progress-photos",
+          {
+            method: "POST",
+            body: JSON.stringify({ photo: nextPhoto }),
+          },
+        );
+        const updated = [created, ...photos];
+        setPhotos(updated);
+        setStatus(updated.length === 0 ? "empty" : "ready");
+        setFormError(null);
+        setComposerOpen(false);
+        setPendingFile(null);
+        setPreview(null);
+        setNote("");
+        setPose("front");
+        setDate(todayKey());
+        if (fileRef.current) fileRef.current.value = "";
+        if (!compareA) setCompareA(created.id);
+        else if (!compareB) setCompareB(created.id);
+      } catch (error) {
+        setFormError(
+          error instanceof Error ? error.message : "Failed to save photo",
+        );
       }
-      setFormError(null);
-      setComposerOpen(false);
-      setPendingFile(null);
-      setPreview(null);
-      setNote("");
-      setPose("front");
-      setDate(todayKey());
-      if (fileRef.current) fileRef.current.value = "";
-      if (!compareA) setCompareA(nextPhoto.id);
-      else if (!compareB) setCompareB(nextPhoto.id);
     });
   }
 
   function deletePhoto(id: string) {
-    const next = photos.filter((photo) => photo.id !== id);
-    persist(next);
-    if (compareA === id) setCompareA(next[0]?.id ?? null);
-    if (compareB === id) setCompareB(next[1]?.id ?? next[0]?.id ?? null);
+    startTransition(async () => {
+      try {
+        await apiJson<{ ok: boolean }>(
+          `/api/progress-photos?id=${encodeURIComponent(id)}`,
+          { method: "DELETE" },
+        );
+        const next = photos.filter((photo) => photo.id !== id);
+        setPhotos(next);
+        setStatus(next.length === 0 ? "empty" : "ready");
+        if (compareA === id) setCompareA(next[0]?.id ?? null);
+        if (compareB === id) setCompareB(next[1]?.id ?? next[0]?.id ?? null);
+      } catch (error) {
+        setFormError(
+          error instanceof Error ? error.message : "Failed to delete photo",
+        );
+      }
+    });
   }
 
   if (status === "loading") {
@@ -185,18 +204,20 @@ export function ProgressPhotosPanel() {
           className="mt-4"
           onClick={() => {
             setStatus("loading");
-            try {
-              const data = loadPhotos();
-              setPhotos(data);
-              setStatus(data.length === 0 ? "empty" : "ready");
-            } catch (error) {
-              setErrorMessage(
-                error instanceof Error
-                  ? error.message
-                  : "Failed to load progress photos",
-              );
-              setStatus("error");
-            }
+            void (async () => {
+              try {
+                const data = await fetchPhotos();
+                setPhotos(data);
+                setStatus(data.length === 0 ? "empty" : "ready");
+              } catch (error) {
+                setErrorMessage(
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to load progress photos",
+                );
+                setStatus("error");
+              }
+            })();
           }}
         >
           Try again
@@ -217,7 +238,7 @@ export function ProgressPhotosPanel() {
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
             Capture dated front, side, and back shots in a consistent setup, then
-            compare across weeks. Photos are compressed for local storage (
+            compare across weeks. Photos are compressed before upload (
             {photos.length}/{MAX_PHOTOS} · ~{storeKb} KB).
           </p>
         </div>
@@ -297,7 +318,7 @@ export function ProgressPhotosPanel() {
               />
               <p className="text-xs text-muted-foreground">
                 File picker or phone camera. Images are resized and JPEG-compressed
-                before saving locally.
+                before saving.
               </p>
             </div>
             <div className="space-y-2 sm:col-span-2">
