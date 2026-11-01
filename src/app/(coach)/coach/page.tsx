@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BookPlus, ClipboardList, NotebookPen, Users } from "lucide-react";
+import {
+  BookPlus,
+  ClipboardList,
+  Dumbbell,
+  FormInput,
+  NotebookPen,
+  Users,
+} from "lucide-react";
 
 import { CoachRoster } from "@/components/coach/coach-roster";
 
@@ -14,9 +21,21 @@ const LINKS = [
     icon: Users,
   },
   {
+    href: "/coach/questionnaire",
+    title: "Questionnaire editor",
+    body: "Add, remove, and reorder onboarding questions for new invites.",
+    icon: FormInput,
+  },
+  {
+    href: "/coach/programs",
+    title: "Workout programs",
+    body: "Build weeks and days with sets, reps, and notes — assign to clients.",
+    icon: Dumbbell,
+  },
+  {
     href: "/coach/plans",
-    title: "Assign plans",
-    body: "Create or assign meal and workout plans to the roster.",
+    title: "Meal plans",
+    body: "Create or assign meal plans to the roster.",
     icon: NotebookPen,
   },
   {

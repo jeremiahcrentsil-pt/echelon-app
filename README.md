@@ -108,10 +108,26 @@ Without Resend keys, invites still work via **copy-link mode** in Coach → Clie
 | `APP_BASE_URL` | Recommended | Same public site URL (invite links) |
 | `RESEND_API_KEY` | For real email | `re_…` from Resend |
 | `INVITE_FROM_EMAIL` | For real email | `Echelon <onboarding@yourdomain.com>` |
+| `S3_BUCKET` | Progress photos (prod) | Bucket name for S3 / R2 / MinIO |
+| `S3_ACCESS_KEY_ID` | Progress photos (prod) | Access key |
+| `S3_SECRET_ACCESS_KEY` | Progress photos (prod) | Secret key |
+| `S3_REGION` | Progress photos (prod) | e.g. `auto` (R2) or `us-east-1` |
+| `S3_ENDPOINT` | R2 / MinIO | R2 account endpoint or `http://127.0.0.1:9000` |
+| `S3_FORCE_PATH_STYLE` | MinIO | Set `true` for local MinIO |
+| `S3_PUBLIC_BASE_URL` | Optional | Public/CDN base so images skip the API proxy |
+| `PROGRESS_PHOTOS_STORAGE_DIR` | Local fallback | Defaults to `./storage` when S3_* unset (keys under `progress-photos/`) |
 | `SEED_COACH_PASSWORD` | Optional | Only if re-seeding prod |
 | `SEED_CLIENT_PASSWORD` | Optional | Only if re-seeding prod |
 
-Live deploy cannot be finished in-agent without Jeremiah’s Vercel/Neon/Resend accounts.
+Live deploy cannot be finished in-agent without Jeremiah’s Vercel/Neon/Resend (and ideally R2/S3) accounts.
+
+### Progress photos storage
+
+Client compresses JPEGs in-browser, then `POST /api/progress-photos` puts the bytes in **object storage** and stores only `objectKey` + `url` in Prisma.
+
+- **Prod:** set the `S3_*` variables (AWS S3, Cloudflare R2, or MinIO).
+- **Local/dev:** leave `S3_*` unset → files under `storage/progress-photos/<userId>/…` (gitignored), served via authenticated `/api/progress-photos/object?key=…`.
+- Timeline + compare UI is unchanged; images load from `photo.url`.
 
 ## Scripts
 

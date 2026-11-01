@@ -114,7 +114,16 @@ export function ProgressPhotosPanel() {
         setFormError(`Photo limit reached (${MAX_PHOTOS}). Delete an older shot first.`);
         return;
       }
-      const nextPhoto: ProgressPhoto = {
+      if (
+        estimateStoreBytes(photos) + pendingFile.bytesApprox >
+        MAX_STORE_BYTES
+      ) {
+        setFormError(
+          "Storage budget full. Delete older photos or use a smaller image.",
+        );
+        return;
+      }
+      const uploadPayload = {
         id: createId("pp"),
         date,
         pose,
@@ -125,19 +134,12 @@ export function ProgressPhotosPanel() {
         bytesApprox: pendingFile.bytesApprox,
         createdAt: new Date().toISOString(),
       };
-      const next = [nextPhoto, ...photos];
-      if (estimateStoreBytes(next) > MAX_STORE_BYTES) {
-        setFormError(
-          "Storage budget full. Delete older photos or use a smaller image.",
-        );
-        return;
-      }
       try {
         const { photo: created } = await apiJson<{ photo: ProgressPhoto }>(
           "/api/progress-photos",
           {
             method: "POST",
-            body: JSON.stringify({ photo: nextPhoto }),
+            body: JSON.stringify({ photo: uploadPayload }),
           },
         );
         const updated = [created, ...photos];
@@ -238,8 +240,8 @@ export function ProgressPhotosPanel() {
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
             Capture dated front, side, and back shots in a consistent setup, then
-            compare across weeks. Photos are compressed before upload (
-            {photos.length}/{MAX_PHOTOS} · ~{storeKb} KB).
+            compare across weeks. Photos are compressed client-side and stored in
+            object storage ({photos.length}/{MAX_PHOTOS} · ~{storeKb} KB).
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -396,7 +398,7 @@ export function ProgressPhotosPanel() {
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={photo.dataUrl}
+                      src={photo.url}
                       alt={`${POSE_LABELS[photo.pose]} progress photo on ${photo.date}`}
                       className="aspect-[3/4] w-full object-cover"
                     />
@@ -546,7 +548,7 @@ function CompareFrame({
     <figure className="overflow-hidden rounded-2xl border border-border/60 bg-card/55">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={photo.dataUrl}
+        src={photo.url}
         alt={`${POSE_LABELS[photo.pose]} on ${photo.date}`}
         className="aspect-[3/4] w-full object-cover"
       />

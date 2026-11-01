@@ -1,6 +1,8 @@
 import {
   BookPlus,
   ClipboardList,
+  Dumbbell,
+  FormInput,
   LayoutDashboard,
   NotebookPen,
   Users,
@@ -28,9 +30,21 @@ export const COACH_NAV_ITEMS: CoachNavItem[] = [
     icon: Users,
   },
   {
+    href: "/coach/questionnaire",
+    label: "Questionnaire",
+    description: "Edit the onboarding form fields.",
+    icon: FormInput,
+  },
+  {
+    href: "/coach/programs",
+    label: "Programs",
+    description: "Build multi-week workout programs.",
+    icon: Dumbbell,
+  },
+  {
     href: "/coach/plans",
-    label: "Assign plans",
-    description: "Meal and workout plans for clients.",
+    label: "Meal plans",
+    description: "Create and assign meal plans.",
     icon: NotebookPen,
   },
   {

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { AlertCircle, Check, Copy, Loader2, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { apiJson } from "@/lib/api/http";
-import type { QuestionnaireField } from "@/lib/data/questionnaire";
+import {
+  formatAnswerForDisplay,
+  type QuestionnaireField,
+} from "@/lib/data/questionnaire";
 import { cn } from "@/lib/utils";
 
 type InviteRow = {
@@ -195,7 +199,15 @@ export function CoachClientsPanel() {
         <p className="mb-4 text-sm text-muted-foreground">
           {emailConfigured
             ? "Invites are emailed via Resend. The link is still shown here as a backup."
-            : "Set RESEND_API_KEY + INVITE_FROM_EMAIL to send real emails. Until then, copy the invite link."}
+            : "Set RESEND_API_KEY + INVITE_FROM_EMAIL to send real emails. Until then, copy the invite link."}{" "}
+          New clients get your current{" "}
+          <Link
+            href="/coach/questionnaire"
+            className="text-primary underline-offset-2 hover:underline"
+          >
+            onboarding questionnaire
+          </Link>
+          .
         </p>
         <form onSubmit={handleInvite} className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
@@ -370,14 +382,17 @@ export function CoachClientsPanel() {
                 </div>
                 <dl className="space-y-2 text-sm">
                   {submission.fields.map((field) => {
-                    const value = submission.answers[field.id];
-                    if (!value?.trim()) return null;
+                    const display = formatAnswerForDisplay(
+                      field,
+                      submission.answers[field.id],
+                    );
+                    if (display === "—") return null;
                     return (
                       <div key={field.id}>
                         <dt className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
                           {field.label}
                         </dt>
-                        <dd className="mt-0.5 text-foreground">{value}</dd>
+                        <dd className="mt-0.5 text-foreground">{display}</dd>
                       </div>
                     );
                   })}

@@ -19,6 +19,9 @@ export type Workout = {
   durationMinutes?: number;
   notes?: string;
   exercises: WorkoutExercise[];
+  /** Set when logged against an assigned program day */
+  programId?: string;
+  programDayId?: string;
 };
 
 export type WorkoutDraft = {
@@ -35,6 +38,8 @@ export type WorkoutDraft = {
       weightLbs: string;
     }>;
   }>;
+  programId?: string;
+  programDayId?: string;
 };
 
 const STORAGE_KEY = "echelon.workouts.v1";
@@ -160,6 +165,8 @@ export function draftToWorkout(draft: WorkoutDraft): Workout {
     performedAt: new Date().toISOString(),
     durationMinutes: Number.isFinite(duration) && duration > 0 ? duration : undefined,
     notes: draft.notes.trim() || undefined,
+    programId: draft.programId,
+    programDayId: draft.programDayId,
     exercises: draft.exercises
       .filter((exercise) => exercise.name.trim().length > 0)
       .map((exercise) => ({

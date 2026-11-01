@@ -39,6 +39,9 @@ yarn-error.log*
 /prisma/*.db-journal
 /prisma/dev.db*
 
+# local filesystem object storage (progress photos fallback)
+/storage/
+
 # vercel
 .vercel
 

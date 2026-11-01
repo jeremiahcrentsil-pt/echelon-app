@@ -56,12 +56,16 @@ model Workout {
   notes           String?
   /// JSON string: WorkoutExercise[]
   exercises       String
+  /// Optional link when logged against an assigned program day
+  programId       String?
+  programDayId    String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, performedAt])
+  @@index([userId, programDayId])
 }
 
 model NutritionEntry {
@@ -168,8 +172,8 @@ model WorkoutPlan {
   title       String
   coachNote   String
   assignedAt  DateTime
-  /// JSON string: WorkoutSessionTemplate[]
-  sessions    String
+  /// JSON string: ProgramWeek[] (weeks → days → exercises with sets/reps/notes)
+  weeks       String
   createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -179,8 +183,13 @@ model WorkoutPlan {
 }
 
 model WorkoutPlanAssignment {
-  planId String
-  userId String
+  planId             String
+  userId             String
+  currentWeekIndex   Int      @default(0)
+  currentDayIndex    Int      @default(0)
+  /// JSON string: string[] of completed ProgramDay ids
+  completedDayIds    String   @default("[]")
+  updatedAt          DateTime @updatedAt
 
   plan WorkoutPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
   user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -236,7 +245,10 @@ model ProgressPhoto {
   date        String
   pose        String
   note        String?
-  dataUrl     String
+  /// Object storage key (S3/R2/MinIO or local filesystem relative path)
+  objectKey   String
+  /// Public CDN URL or authenticated /api/progress-photos/object?key=… proxy
+  url         String
   width       Int
   height      Int
   bytesApprox Int
@@ -245,6 +257,7 @@ model ProgressPhoto {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
+  @@index([objectKey])
 }
 
 /// Coach → client email invite
@@ -296,6 +309,8 @@ model QuestionnaireAssignment {
   status      String    @default("pending")
   inviteId    String?   @unique
   userId      String?
+  /// JSON snapshot of QuestionnaireField[] at invite/assign time (keeps past forms readable)
+  fieldsSnapshot String?
   createdAt   DateTime  @default(now())
   completedAt DateTime?
 

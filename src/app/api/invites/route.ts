@@ -109,14 +109,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let templateId = parsed.data.templateId;
-  if (!templateId) {
-    const defaultTemplate = await prisma.questionnaireTemplate.findFirst({
-      where: { coachId: result.user.id, isDefault: true },
-    });
-    templateId = defaultTemplate?.id;
-  }
-  if (!templateId) {
+  let template = parsed.data.templateId
+    ? await prisma.questionnaireTemplate.findFirst({
+        where: { id: parsed.data.templateId, coachId: result.user.id },
+      })
+    : await prisma.questionnaireTemplate.findFirst({
+        where: { coachId: result.user.id, isDefault: true },
+      });
+  if (!template) {
     return NextResponse.json(
       { error: "No onboarding questionnaire template found. Seed or create one." },
       { status: 400 },
@@ -132,13 +132,15 @@ export async function POST(req: NextRequest) {
       email,
       name,
       coachId: result.user.id,
-      templateId,
+      templateId: template.id,
       status: "pending",
       expiresAt,
       assignment: {
         create: {
-          templateId,
+          templateId: template.id,
           status: "pending",
+          // Freeze the coach's current form so later edits don't rewrite this invite
+          fieldsSnapshot: template.fields,
         },
       },
     },
