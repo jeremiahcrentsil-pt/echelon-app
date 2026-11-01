@@ -3,8 +3,11 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Pooled URL on Neon/Supabase (runtime). For local Postgres, same as DIRECT_URL.
+  url       = env("DATABASE_URL")
+  // Non-pooled URL for migrations (Neon "direct"). Set equal to DATABASE_URL if unused.
+  directUrl = env("DIRECT_URL")
 }
 
 model User {

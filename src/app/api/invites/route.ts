@@ -4,7 +4,11 @@ import { z } from "zod";
 import { requireCoach } from "@/lib/auth-helpers";
 import { createInviteToken } from "@/lib/crypto-token";
 import { prisma } from "@/lib/db";
-import { buildInviteUrl, deliverInviteLink } from "@/lib/invite-mail";
+import {
+  buildInviteUrl,
+  deliverInviteLink,
+  isInviteEmailConfigured,
+} from "@/lib/invite-mail";
 
 const createSchema = z.object({
   name: z.string().min(1).max(120),
@@ -48,6 +52,7 @@ export async function GET() {
   ]);
 
   return NextResponse.json({
+    emailConfigured: isInviteEmailConfigured(),
     invites: invites.map((invite) => ({
       id: invite.id,
       token: invite.token,

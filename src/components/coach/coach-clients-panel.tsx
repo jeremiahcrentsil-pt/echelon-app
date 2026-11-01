@@ -52,6 +52,8 @@ export function CoachClientsPanel() {
   const [invites, setInvites] = useState<InviteRow[]>([]);
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [submissions, setSubmissions] = useState<SubmissionRow[]>([]);
+  const [emailConfigured, setEmailConfigured] = useState(false);
+  const [lastDeliveryMode, setLastDeliveryMode] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -63,11 +65,16 @@ export function CoachClientsPanel() {
 
   async function reload() {
     const [roster, review] = await Promise.all([
-      apiJson<{ invites: InviteRow[]; clients: ClientRow[] }>("/api/invites"),
+      apiJson<{
+        invites: InviteRow[];
+        clients: ClientRow[];
+        emailConfigured?: boolean;
+      }>("/api/invites"),
       apiJson<{ submissions: SubmissionRow[] }>("/api/questionnaires?scope=review"),
     ]);
     setInvites(roster.invites);
     setClients(roster.clients);
+    setEmailConfigured(Boolean(roster.emailConfigured));
     setSubmissions(review.submissions);
     setNoteDrafts(
       Object.fromEntries(
@@ -111,6 +118,7 @@ export function CoachClientsPanel() {
         });
         setName("");
         setEmail("");
+        setLastDeliveryMode(data.delivery.mode);
         setLastInviteUrl(data.delivery.inviteUrl);
         setFlash(data.delivery.message);
         await reload();
@@ -166,12 +174,29 @@ export function CoachClientsPanel() {
   return (
     <div className="space-y-10">
       <section className="rounded-2xl border border-border/60 bg-card/40 p-5 sm:p-6">
-        <div className="mb-4 flex items-center gap-2 text-primary">
-          <UserPlus className="size-4" />
-          <h2 className="font-display text-lg font-semibold tracking-tight text-foreground">
-            Invite a client
-          </h2>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-primary">
+            <UserPlus className="size-4" />
+            <h2 className="font-display text-lg font-semibold tracking-tight text-foreground">
+              Invite a client
+            </h2>
+          </div>
+          <span
+            className={cn(
+              "rounded-full px-2.5 py-1 text-[11px] uppercase tracking-[0.14em]",
+              emailConfigured
+                ? "bg-primary/15 text-primary"
+                : "bg-signal/15 text-signal",
+            )}
+          >
+            {emailConfigured ? "Resend email on" : "Copy-link mode"}
+          </span>
         </div>
+        <p className="mb-4 text-sm text-muted-foreground">
+          {emailConfigured
+            ? "Invites are emailed via Resend. The link is still shown here as a backup."
+            : "Set RESEND_API_KEY + INVITE_FROM_EMAIL to send real emails. Until then, copy the invite link."}
+        </p>
         <form onSubmit={handleInvite} className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="invite-name">Name</Label>
@@ -213,22 +238,29 @@ export function CoachClientsPanel() {
           </p>
         ) : null}
         {lastInviteUrl ? (
-          <div className="mt-3 flex flex-col gap-2 rounded-xl border border-primary/25 bg-primary/5 p-3 sm:flex-row sm:items-center">
-            <code className="flex-1 break-all text-xs text-foreground">
-              {lastInviteUrl}
-            </code>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={async () => {
-                await navigator.clipboard.writeText(lastInviteUrl);
-                setFlash("Invite URL copied.");
-              }}
-            >
-              <Copy className="size-3.5" />
-              Copy link
-            </Button>
+          <div className="mt-3 space-y-2 rounded-xl border border-primary/25 bg-primary/5 p-3">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-primary">
+              {lastDeliveryMode === "email"
+                ? "Emailed · backup link"
+                : "Share this invite link"}
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <code className="flex-1 break-all text-xs text-foreground">
+                {lastInviteUrl}
+              </code>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(lastInviteUrl);
+                  setFlash("Invite URL copied.");
+                }}
+              >
+                <Copy className="size-3.5" />
+                Copy link
+              </Button>
+            </div>
           </div>
         ) : null}
       </section>
