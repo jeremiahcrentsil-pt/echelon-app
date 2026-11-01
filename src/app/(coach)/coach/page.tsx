@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BookPlus, ClipboardList, NotebookPen } from "lucide-react";
+import { BookPlus, ClipboardList, NotebookPen, Users } from "lucide-react";
 
 import { CoachRoster } from "@/components/coach/coach-roster";
 
 export const metadata: Metadata = { title: "Coach" };
 
 const LINKS = [
+  {
+    href: "/coach/clients",
+    title: "Invite clients",
+    body: "Add clients by email, copy invite links, review onboarding forms.",
+    icon: Users,
+  },
   {
     href: "/coach/plans",
     title: "Assign plans",

@@ -6,12 +6,16 @@ declare module "next-auth" {
       id: string;
       role: "coach" | "client";
       phase?: string;
+      coachId?: string;
+      onboardingComplete?: boolean;
     } & DefaultSession["user"];
   }
 
   interface User {
     role?: "coach" | "client";
     phase?: string;
+    coachId?: string;
+    onboardingComplete?: boolean;
   }
 }
 
@@ -20,5 +24,7 @@ declare module "next-auth/jwt" {
     id?: string;
     role?: "coach" | "client";
     phase?: string;
+    coachId?: string;
+    onboardingComplete?: boolean;
   }
 }

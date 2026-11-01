@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 import { CONTENT_LIBRARY } from "../src/lib/data/content";
+import { DEFAULT_ONBOARDING_FIELDS } from "../src/lib/data/questionnaire";
 import { SEED_WORKOUTS } from "../src/lib/data/workouts";
 import { toJson } from "../src/lib/json";
 
@@ -30,6 +31,8 @@ async function main() {
     },
   });
 
+  const onboardingDone = new Date(Date.now() - 1000 * 60 * 60 * 24 * 7);
+
   const alex = await prisma.user.upsert({
     where: { email: "alex@example.com" },
     update: {
@@ -37,6 +40,8 @@ async function main() {
       role: "client",
       phase: "Cut · Plan A",
       passwordHash: clientHash,
+      coachId: coach.id,
+      onboardingCompletedAt: onboardingDone,
     },
     create: {
       id: "client-alex",
@@ -45,6 +50,8 @@ async function main() {
       role: "client",
       phase: "Cut · Plan A",
       passwordHash: clientHash,
+      coachId: coach.id,
+      onboardingCompletedAt: onboardingDone,
     },
   });
 
@@ -55,6 +62,8 @@ async function main() {
       role: "client",
       phase: "Recomp",
       passwordHash: clientHash,
+      coachId: coach.id,
+      onboardingCompletedAt: onboardingDone,
     },
     create: {
       id: "client-sam",
@@ -63,6 +72,29 @@ async function main() {
       role: "client",
       phase: "Recomp",
       passwordHash: clientHash,
+      coachId: coach.id,
+      onboardingCompletedAt: onboardingDone,
+    },
+  });
+
+  await prisma.questionnaireTemplate.upsert({
+    where: { id: "q-default-onboarding" },
+    update: {
+      title: "Initial client questionnaire",
+      description:
+        "Goals, experience, limitations, and availability so coaching can start sharp.",
+      fields: toJson(DEFAULT_ONBOARDING_FIELDS),
+      isDefault: true,
+      coachId: coach.id,
+    },
+    create: {
+      id: "q-default-onboarding",
+      coachId: coach.id,
+      title: "Initial client questionnaire",
+      description:
+        "Goals, experience, limitations, and availability so coaching can start sharp.",
+      fields: toJson(DEFAULT_ONBOARDING_FIELDS),
+      isDefault: true,
     },
   });
 

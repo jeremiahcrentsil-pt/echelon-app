@@ -28,6 +28,15 @@ Open [http://127.0.0.1:43127](http://127.0.0.1:43127).
 | Client | `alex@example.com`        | `client123` |
 | Client | `sam@example.com`         | `client123` |
 
+### Invites + onboarding (local)
+
+1. Sign in as coach → **Clients** (`/coach/clients`).
+2. Enter a name + email → **Create invite**.
+3. Without `RESEND_API_KEY` / `INVITE_FROM_EMAIL`, the invite URL is logged on the server and shown in the UI — copy `/invite/<token>`.
+4. Open the link, set a password, join as `client` linked to the coach.
+5. Complete the seeded **Initial client questionnaire** at `/onboarding` (required before full app access).
+6. Coach reviews submissions on the same Clients page.
+
 ## Scripts
 
 | Command              | Description                |
@@ -43,3 +52,5 @@ Open [http://127.0.0.1:43127](http://127.0.0.1:43127).
 ## What persists
 
 Per signed-in user in SQLite: workouts, nutrition entries, check-ins, monitoring, meal-plan completions, exercise favorites, saved content, progress photo metadata/blobs. Coach-created meal/workout plans and content posts are shared via assignment tables. Clients only see their own data; `/coach` requires the coach role.
+
+Also persists: client invites, questionnaire templates/assignments/submissions, and coach↔client linkage (`coachId`).
