@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiJson } from "@/lib/api/http";
 import {
   emptyAnswers,
+  encodeMultiAnswers,
+  parseMultiAnswers,
   type QuestionnaireField,
 } from "@/lib/data/questionnaire";
 
@@ -159,6 +161,37 @@ export function OnboardingQuestionnaire() {
                 </option>
               ))}
             </select>
+          ) : field.type === "multiselect" ? (
+            <div className="space-y-2 rounded-lg border border-border/50 bg-secondary/15 p-3">
+              {(field.options ?? []).map((option) => {
+                const selected = parseMultiAnswers(answers[field.id]).includes(
+                  option,
+                );
+                return (
+                  <label
+                    key={option}
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      className="size-4 rounded border-border"
+                      checked={selected}
+                      onChange={(event) => {
+                        const current = parseMultiAnswers(answers[field.id]);
+                        const next = event.target.checked
+                          ? [...current, option]
+                          : current.filter((item) => item !== option);
+                        setAnswers((prev) => ({
+                          ...prev,
+                          [field.id]: encodeMultiAnswers(next),
+                        }));
+                      }}
+                    />
+                    {option}
+                  </label>
+                );
+              })}
+            </div>
           ) : field.type === "scale" ? (
             <Input
               id={field.id}

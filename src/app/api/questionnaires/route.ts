@@ -3,13 +3,47 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireCoach, requireSession } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { fromJson, toJson } from "@/lib/json";
-import type { QuestionnaireField } from "@/lib/data/questionnaire";
+import {
+  normalizeFields,
+  resolveAssignmentFields,
+  type QuestionnaireField,
+  type QuestionnaireTemplateData,
+} from "@/lib/data/questionnaire";
+
+function mapTemplate(row: {
+  id: string;
+  title: string;
+  description: string;
+  fields: string;
+  isDefault: boolean;
+  updatedAt: Date;
+}): QuestionnaireTemplateData {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    fields: fromJson<QuestionnaireField[]>(row.fields, []),
+    isDefault: row.isDefault,
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
 
 export async function GET(req: NextRequest) {
   const result = await requireSession();
   if ("error" in result) return result.error;
 
   const scope = req.nextUrl.searchParams.get("scope");
+
+  if (result.user.role === "coach" && scope === "template") {
+    const template = await prisma.questionnaireTemplate.findFirst({
+      where: { coachId: result.user.id, isDefault: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    if (!template) {
+      return NextResponse.json({ template: null });
+    }
+    return NextResponse.json({ template: mapTemplate(template) });
+  }
 
   if (result.user.role === "coach" && scope === "review") {
     const submissions = await prisma.questionnaireSubmission.findMany({
@@ -21,7 +55,9 @@ export async function GET(req: NextRequest) {
         user: { select: { id: true, name: true, email: true } },
         assignment: {
           include: {
-            template: { select: { id: true, title: true, fields: true } },
+            template: {
+              select: { id: true, title: true, fields: true },
+            },
           },
         },
       },
@@ -36,7 +72,10 @@ export async function GET(req: NextRequest) {
         answers: fromJson<Record<string, string>>(row.answers, {}),
         client: row.user,
         templateTitle: row.assignment.template.title,
-        fields: fromJson<QuestionnaireField[]>(row.assignment.template.fields, []),
+        fields: resolveAssignmentFields(
+          row.assignment.fieldsSnapshot,
+          row.assignment.template.fields,
+        ),
       })),
     });
   }
@@ -75,10 +114,73 @@ export async function GET(req: NextRequest) {
       status: assignment.status,
       title: assignment.template.title,
       description: assignment.template.description,
-      fields: fromJson<QuestionnaireField[]>(assignment.template.fields, []),
+      fields: resolveAssignmentFields(
+        assignment.fieldsSnapshot,
+        assignment.template.fields,
+      ),
     },
     onboardingComplete: Boolean(user?.onboardingCompletedAt),
   });
+}
+
+export async function PUT(req: NextRequest) {
+  const result = await requireCoach();
+  if ("error" in result) return result.error;
+
+  const body = (await req.json()) as {
+    templateId?: string;
+    title?: string;
+    description?: string;
+    fields?: QuestionnaireField[];
+  };
+
+  if (!Array.isArray(body.fields)) {
+    return NextResponse.json({ error: "fields required" }, { status: 400 });
+  }
+
+  const fields = normalizeFields(body.fields);
+  if (fields.length === 0) {
+    return NextResponse.json(
+      { error: "Add at least one question" },
+      { status: 400 },
+    );
+  }
+
+  let template = body.templateId
+    ? await prisma.questionnaireTemplate.findFirst({
+        where: { id: body.templateId, coachId: result.user.id },
+      })
+    : await prisma.questionnaireTemplate.findFirst({
+        where: { coachId: result.user.id, isDefault: true },
+      });
+
+  if (!template) {
+    template = await prisma.questionnaireTemplate.create({
+      data: {
+        coachId: result.user.id,
+        title: body.title?.trim() || "Initial client questionnaire",
+        description:
+          body.description?.trim() ||
+          "Goals, experience, and availability so coaching can start sharp.",
+        fields: toJson(fields),
+        isDefault: true,
+      },
+    });
+  } else {
+    template = await prisma.questionnaireTemplate.update({
+      where: { id: template.id },
+      data: {
+        title: body.title?.trim() || template.title,
+        description:
+          body.description?.trim() !== undefined
+            ? body.description.trim()
+            : template.description,
+        fields: toJson(fields),
+      },
+    });
+  }
+
+  return NextResponse.json({ template: mapTemplate(template) });
 }
 
 export async function POST(req: NextRequest) {
@@ -110,9 +212,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Already completed" }, { status: 409 });
   }
 
-  const fields = fromJson<QuestionnaireField[]>(assignment.template.fields, []);
+  const fields = resolveAssignmentFields(
+    assignment.fieldsSnapshot,
+    assignment.template.fields,
+  );
   for (const field of fields) {
-    if (field.required && !String(body.answers[field.id] ?? "").trim()) {
+    if (!field.required) continue;
+    const raw = body.answers[field.id] ?? "";
+    if (field.type === "multiselect") {
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          return NextResponse.json(
+            { error: `Missing required field: ${field.label}` },
+            { status: 400 },
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { error: `Missing required field: ${field.label}` },
+          { status: 400 },
+        );
+      }
+    } else if (!String(raw).trim()) {
       return NextResponse.json(
         { error: `Missing required field: ${field.label}` },
         { status: 400 },
@@ -131,7 +253,12 @@ export async function POST(req: NextRequest) {
     });
     await tx.questionnaireAssignment.update({
       where: { id: assignment.id },
-      data: { status: "completed", completedAt: new Date() },
+      data: {
+        status: "completed",
+        completedAt: new Date(),
+        // Ensure snapshot exists for future review even if invite predated the column
+        fieldsSnapshot: assignment.fieldsSnapshot ?? toJson(fields),
+      },
     });
     await tx.user.update({
       where: { id: result.user.id },
