@@ -4,6 +4,7 @@ import {
   BookPlus,
   ClipboardList,
   Dumbbell,
+  FormInput,
   NotebookPen,
   Users,
 } from "lucide-react";
@@ -18,6 +19,12 @@ const LINKS = [
     title: "Invite clients",
     body: "Add clients by email, copy invite links, review onboarding forms.",
     icon: Users,
+  },
+  {
+    href: "/coach/questionnaire",
+    title: "Questionnaire editor",
+    body: "Add, remove, and reorder onboarding questions for new invites.",
+    icon: FormInput,
   },
   {
     href: "/coach/programs",
