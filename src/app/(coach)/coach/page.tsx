@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BookPlus, ClipboardList, NotebookPen } from "lucide-react";
 
-import { MOCK_CLIENTS } from "@/lib/data/clients";
+import { CoachRoster } from "@/components/coach/coach-roster";
 
 export const metadata: Metadata = { title: "Coach" };
 
@@ -38,8 +38,8 @@ export default function CoachOverviewPage() {
           Coach
         </h1>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-          Assign plans, post library content, and review check-ins for mock
-          clients — shared with the client app via localStorage until auth lands.
+          Assign plans, post library content, and review check-ins for your
+          clients — data is scoped to each signed-in account.
         </p>
       </header>
 
@@ -47,20 +47,7 @@ export default function CoachOverviewPage() {
         <h2 className="mb-3 font-display text-lg font-semibold tracking-tight">
           Roster
         </h2>
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {MOCK_CLIENTS.map((client) => (
-            <li
-              key={client.id}
-              className="rounded-2xl border border-border/60 bg-card/55 p-4"
-            >
-              <p className="font-display text-lg font-semibold">{client.name}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{client.email}</p>
-              <p className="mt-2 text-xs uppercase tracking-[0.16em] text-primary">
-                {client.phase}
-              </p>
-            </li>
-          ))}
-        </ul>
+        <CoachRoster />
       </section>
 
       <section className="grid gap-3 animate-rise stagger-2">

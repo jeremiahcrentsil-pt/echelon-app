@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Figtree, Geist_Mono, Syne } from "next/font/google";
 
+import { AuthSessionProvider } from "@/components/providers/session-provider";
+
 import "./globals.css";
 
 const syne = Syne({
@@ -35,7 +37,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${syne.variable} ${figtree.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="atmosphere grain min-h-full font-sans text-foreground">
-        {children}
+        <AuthSessionProvider>{children}</AuthSessionProvider>
       </body>
     </html>
   );
