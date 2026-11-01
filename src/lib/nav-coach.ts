@@ -2,6 +2,7 @@ import {
   BookPlus,
   ClipboardList,
   Dumbbell,
+  FormInput,
   LayoutDashboard,
   NotebookPen,
   Users,
@@ -27,6 +28,12 @@ export const COACH_NAV_ITEMS: CoachNavItem[] = [
     label: "Clients",
     description: "Invite clients and review onboarding.",
     icon: Users,
+  },
+  {
+    href: "/coach/questionnaire",
+    label: "Questionnaire",
+    description: "Edit the onboarding form fields.",
+    icon: FormInput,
   },
   {
     href: "/coach/programs",

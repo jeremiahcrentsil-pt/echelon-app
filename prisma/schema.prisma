@@ -305,6 +305,8 @@ model QuestionnaireAssignment {
   status      String    @default("pending")
   inviteId    String?   @unique
   userId      String?
+  /// JSON snapshot of QuestionnaireField[] at invite/assign time (keeps past forms readable)
+  fieldsSnapshot String?
   createdAt   DateTime  @default(now())
   completedAt DateTime?
 
