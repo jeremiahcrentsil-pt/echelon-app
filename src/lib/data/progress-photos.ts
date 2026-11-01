@@ -5,20 +5,26 @@ export type ProgressPhoto = {
   date: string; // YYYY-MM-DD
   pose: PhotoPose;
   note?: string;
-  /** Compressed JPEG data URL */
-  dataUrl: string;
+  /** Display URL (CDN / S3 public URL or authenticated API proxy) */
+  url: string;
+  objectKey?: string;
   width: number;
   height: number;
   bytesApprox: number;
   createdAt: string;
 };
 
-const STORAGE_KEY = "echelon.progressphotos.v1";
-export const MAX_PHOTOS = 24;
+/** Upload payload still carries a compressed data URL; server stores the bytes in object storage. */
+export type ProgressPhotoUpload = Omit<ProgressPhoto, "url" | "objectKey"> & {
+  dataUrl: string;
+};
+
+const STORAGE_KEY = "echelon.progressphotos.v2";
+export const MAX_PHOTOS = 48;
 export const MAX_EDGE_PX = 720;
 export const JPEG_QUALITY = 0.72;
-/** Soft cap so localStorage stays usable across browsers (~4.5MB of photo payload). */
-export const MAX_STORE_BYTES = 4_500_000;
+/** Soft per-user budget once binaries live in object storage (not the DB). */
+export const MAX_STORE_BYTES = 40_000_000;
 
 export const POSE_LABELS: Record<PhotoPose, string> = {
   front: "Front",
@@ -77,7 +83,9 @@ export function formatPhotoDate(dateKey: string) {
 
 export function groupByDate(photos: ProgressPhoto[]) {
   const map = new Map<string, ProgressPhoto[]>();
-  for (const photo of [...photos].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))) {
+  for (const photo of [...photos].sort(
+    (a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt),
+  )) {
     const list = map.get(photo.date) ?? [];
     list.push(photo);
     map.set(photo.date, list);
@@ -92,7 +100,7 @@ export type CompressResult = {
   bytesApprox: number;
 };
 
-/** Resize + JPEG-compress a File/Blob for localStorage-friendly storage. */
+/** Resize + JPEG-compress a File/Blob before upload to object storage. */
 export async function compressImageFile(
   file: File,
   maxEdge = MAX_EDGE_PX,
@@ -120,84 +128,8 @@ export async function compressImageFile(
 
   const dataUrl = canvas.toDataURL("image/jpeg", quality);
   const bytesApprox = Math.round((dataUrl.length * 3) / 4);
-  if (bytesApprox > 550_000) {
+  if (bytesApprox > 900_000) {
     throw new Error("Image is still too large after compression. Try a smaller photo.");
   }
   return { dataUrl, width, height, bytesApprox };
-}
-
-/** Tiny seeded demo frames so the tracker isn’t empty on first open. */
-export function createSeedPhotos(): ProgressPhoto[] {
-  const older = new Date();
-  older.setDate(older.getDate() - 14);
-  const mid = new Date();
-  mid.setDate(mid.getDate() - 7);
-
-  return [
-    makeSeedPhoto("seed-front-old", todayKey(older), "front", "#1a3a3a", "#3ecfbe", "Week −2"),
-    makeSeedPhoto("seed-side-old", todayKey(older), "side", "#1a2a3a", "#7ec8e3", "Week −2"),
-    makeSeedPhoto("seed-front-mid", todayKey(mid), "front", "#1f3330", "#5ee0c8", "Week −1"),
-  ];
-}
-
-function makeSeedPhoto(
-  id: string,
-  date: string,
-  pose: PhotoPose,
-  bg: string,
-  accent: string,
-  label: string,
-): ProgressPhoto {
-  const canvas = document.createElement("canvas");
-  canvas.width = 360;
-  canvas.height = 480;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    return {
-      id,
-      date,
-      pose,
-      note: label,
-      dataUrl:
-        "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
-      width: 1,
-      height: 1,
-      bytesApprox: 50,
-      createdAt: new Date(`${date}T12:00:00`).toISOString(),
-    };
-  }
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, 360, 480);
-  ctx.fillStyle = accent;
-  ctx.globalAlpha = 0.35;
-  ctx.beginPath();
-  ctx.ellipse(180, 200, 70, 120, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = "#e8f7f4";
-  ctx.font = "600 22px sans-serif";
-  ctx.fillText(POSE_LABELS[pose], 24, 40);
-  ctx.font = "14px sans-serif";
-  ctx.fillStyle = "#9bb8b2";
-  ctx.fillText(label, 24, 64);
-  const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
-  return {
-    id,
-    date,
-    pose,
-    note: `${label} seed frame`,
-    dataUrl,
-    width: 360,
-    height: 480,
-    bytesApprox: Math.round((dataUrl.length * 3) / 4),
-    createdAt: new Date(`${date}T12:00:00`).toISOString(),
-  };
-}
-
-export function ensureSeededPhotos(): ProgressPhoto[] {
-  const existing = loadPhotos();
-  if (existing.length > 0) return existing;
-  const seeded = createSeedPhotos();
-  savePhotos(seeded);
-  return seeded;
 }

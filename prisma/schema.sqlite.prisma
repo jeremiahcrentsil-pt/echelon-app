@@ -245,7 +245,10 @@ model ProgressPhoto {
   date        String
   pose        String
   note        String?
-  dataUrl     String
+  /// Object storage key (S3/R2/MinIO or local filesystem relative path)
+  objectKey   String
+  /// Public CDN URL or authenticated /api/progress-photos/object?key=… proxy
+  url         String
   width       Int
   height      Int
   bytesApprox Int
@@ -254,6 +257,7 @@ model ProgressPhoto {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
+  @@index([objectKey])
 }
 
 /// Coach → client email invite
