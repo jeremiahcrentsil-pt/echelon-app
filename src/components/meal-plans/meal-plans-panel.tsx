@@ -12,26 +12,30 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { loadActiveClientId } from "@/lib/data/clients";
+import { apiJson } from "@/lib/api/http";
 import {
   dayTotals,
   eatenCountForDay,
   formatAssignedAt,
   getCompletion,
-  loadStore,
   planDayIndexForDate,
-  plansForClient,
-  saveStore,
   SLOT_LABELS,
   todayKey,
   upsertCompletion,
   type MealCompletion,
+  type MealPlan,
   type MealPlanStore,
   type PlannedMeal,
 } from "@/lib/data/meal-plans";
 import { cn } from "@/lib/utils";
 
 type Status = "loading" | "ready" | "error" | "empty";
+
+async function fetchMealPlans() {
+  return apiJson<{ plans: MealPlan[]; completions: MealCompletion[] }>(
+    "/api/meal-plans",
+  );
+}
 
 export function MealPlansPanel() {
   const [store, setStore] = useState<MealPlanStore>({ plans: [], completions: [] });
@@ -44,20 +48,15 @@ export function MealPlansPanel() {
   const [isPending, startTransition] = useTransition();
   const dateKey = todayKey();
 
-  const [clientId, setClientId] = useState("client-alex");
-
   useEffect(() => {
     let cancelled = false;
-    const timer = window.setTimeout(() => {
+    void (async () => {
       try {
-        const active = loadActiveClientId();
-        const data = loadStore();
+        const data = await fetchMealPlans();
         if (cancelled) return;
-        setClientId(active);
         setStore(data);
-        const mine = plansForClient(data.plans, active);
-        setSelectedPlanId(mine[0]?.id ?? null);
-        setStatus(mine.length === 0 ? "empty" : "ready");
+        setSelectedPlanId(data.plans[0]?.id ?? null);
+        setStatus(data.plans.length === 0 ? "empty" : "ready");
       } catch (error) {
         if (cancelled) return;
         setErrorMessage(
@@ -65,17 +64,13 @@ export function MealPlansPanel() {
         );
         setStatus("error");
       }
-    }, 320);
+    })();
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, []);
 
-  const myPlans = useMemo(
-    () => plansForClient(store.plans, clientId),
-    [store.plans, clientId],
-  );
+  const myPlans = store.plans;
 
   const plan = useMemo(
     () => myPlans.find((item) => item.id === selectedPlanId) ?? myPlans[0] ?? null,
@@ -89,16 +84,27 @@ export function MealPlansPanel() {
 
   const totals = useMemo(() => (day ? dayTotals(day) : null), [day]);
 
-  function persist(next: MealPlanStore) {
-    saveStore(next);
-    setStore(next);
-    const mine = plansForClient(next.plans, clientId);
-    setStatus(mine.length === 0 ? "empty" : "ready");
+  async function persistCompletion(nextCompletion: MealCompletion) {
+    const { completion } = await apiJson<{ completion: MealCompletion }>(
+      "/api/meal-plans",
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          action: "completion",
+          completion: nextCompletion,
+        }),
+      },
+    );
+    setStore((current) => ({
+      ...current,
+      completions: upsertCompletion(current.completions, completion),
+    }));
+    setStatus("ready");
   }
 
   function toggleEaten(meal: PlannedMeal) {
     if (!plan) return;
-    startTransition(() => {
+    startTransition(async () => {
       const existing = getCompletion(store.completions, meal.id, dateKey);
       const nextCompletion: MealCompletion = {
         mealId: meal.id,
@@ -107,15 +113,18 @@ export function MealPlansPanel() {
         adherenceNote: existing?.adherenceNote,
         updatedAt: new Date().toISOString(),
       };
-      persist({
-        ...store,
-        completions: upsertCompletion(store.completions, nextCompletion),
-      });
+      try {
+        await persistCompletion(nextCompletion);
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to update meal",
+        );
+      }
     });
   }
 
   function saveNote(meal: PlannedMeal) {
-    startTransition(() => {
+    startTransition(async () => {
       const existing = getCompletion(store.completions, meal.id, dateKey);
       const nextCompletion: MealCompletion = {
         mealId: meal.id,
@@ -124,12 +133,15 @@ export function MealPlansPanel() {
         adherenceNote: noteDraft.trim() || undefined,
         updatedAt: new Date().toISOString(),
       };
-      persist({
-        ...store,
-        completions: upsertCompletion(store.completions, nextCompletion),
-      });
-      setNoteMealId(null);
-      setNoteDraft("");
+      try {
+        await persistCompletion(nextCompletion);
+        setNoteMealId(null);
+        setNoteDraft("");
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to save note",
+        );
+      }
     });
   }
 
@@ -157,22 +169,21 @@ export function MealPlansPanel() {
           onClick={() => {
             setStatus("loading");
             setErrorMessage(null);
-            try {
-              const active = loadActiveClientId();
-              const data = loadStore();
-              setClientId(active);
-              setStore(data);
-              const mine = plansForClient(data.plans, active);
-              setSelectedPlanId(mine[0]?.id ?? null);
-              setStatus(mine.length === 0 ? "empty" : "ready");
-            } catch (error) {
-              setErrorMessage(
-                error instanceof Error
-                  ? error.message
-                  : "Failed to load meal plans",
-              );
-              setStatus("error");
-            }
+            void (async () => {
+              try {
+                const data = await fetchMealPlans();
+                setStore(data);
+                setSelectedPlanId(data.plans[0]?.id ?? null);
+                setStatus(data.plans.length === 0 ? "empty" : "ready");
+              } catch (error) {
+                setErrorMessage(
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to load meal plans",
+                );
+                setStatus("error");
+              }
+            })();
           }}
         >
           Try again
@@ -191,8 +202,7 @@ export function MealPlansPanel() {
             No plans assigned
           </h2>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-            When Jeremiah assigns a meal plan to this client, it will show up here.
-            Switch clients in the bar above or assign one from Coach tools.
+            When Jeremiah assigns a meal plan to your account, it will show up here.
           </p>
         </div>
       </div>

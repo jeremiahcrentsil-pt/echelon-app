@@ -13,13 +13,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { apiJson } from "@/lib/api/http";
 import {
-  loadEntries,
   MEAL_LABELS,
   MEAL_ORDER,
   productToEntry,
-  saveEntries,
   todayKey,
+  type FoodEntry,
   type MealType,
 } from "@/lib/data/nutrition";
 import {
@@ -53,6 +53,7 @@ export function BarcodeScanner() {
   const [meal, setMeal] = useState<MealType>("snack");
   const [servings, setServings] = useState("1");
   const [savedName, setSavedName] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -168,7 +169,7 @@ export function BarcodeScanner() {
 
   function addToLog() {
     if (lookup.status !== "ready") return;
-    startTransition(() => {
+    startTransition(async () => {
       const servingsN = Math.max(0.25, Number.parseFloat(servings) || 1);
       const entry = productToEntry({
         name: lookup.product.name,
@@ -180,9 +181,21 @@ export function BarcodeScanner() {
         meal,
         date: todayKey(),
       });
-      const existing = loadEntries();
-      saveEntries([entry, ...existing]);
-      setSavedName(entry.name);
+      setSaveError(null);
+      try {
+        const { entry: created } = await apiJson<{ entry: FoodEntry }>(
+          "/api/nutrition",
+          {
+            method: "POST",
+            body: JSON.stringify({ entry }),
+          },
+        );
+        setSavedName(created.name);
+      } catch (error) {
+        setSaveError(
+          error instanceof Error ? error.message : "Failed to add food to log",
+        );
+      }
     });
   }
 
@@ -391,6 +404,12 @@ export function BarcodeScanner() {
             <p className="mt-4 flex items-center gap-2 text-sm text-primary">
               <Check className="size-4" />
               Added {savedName} to today’s log.
+            </p>
+          )}
+          {saveError && (
+            <p className="mt-4 flex items-center gap-2 text-sm text-destructive" role="alert">
+              <AlertCircle className="size-4 shrink-0" />
+              {saveError}
             </p>
           )}
         </section>
