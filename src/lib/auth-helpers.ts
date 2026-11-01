@@ -8,6 +8,8 @@ export type SessionUser = {
   name: string;
   role: "coach" | "client";
   phase?: string;
+  coachId?: string;
+  onboardingComplete?: boolean;
 };
 
 export async function requireSession() {
@@ -21,6 +23,8 @@ export async function requireSession() {
     name: session.user.name ?? "",
     role: session.user.role ?? "client",
     phase: session.user.phase,
+    coachId: session.user.coachId,
+    onboardingComplete: session.user.onboardingComplete,
   };
   return { user };
 }

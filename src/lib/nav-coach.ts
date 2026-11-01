@@ -3,6 +3,7 @@ import {
   ClipboardList,
   LayoutDashboard,
   NotebookPen,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -19,6 +20,12 @@ export const COACH_NAV_ITEMS: CoachNavItem[] = [
     label: "Overview",
     description: "Roster pulse and shortcuts.",
     icon: LayoutDashboard,
+  },
+  {
+    href: "/coach/clients",
+    label: "Clients",
+    description: "Invite clients and review onboarding.",
+    icon: Users,
   },
   {
     href: "/coach/plans",
