@@ -10,6 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { AssignedPlanCard } from "@/components/workouts/assigned-plan-card";
 import { apiJson } from "@/lib/api/http";
 import {
+  programDayToDraft,
+  type ProgramDay,
+  type WorkoutPlan,
+} from "@/lib/data/workout-plans";
+import {
   createId,
   draftToWorkout,
   emptyDraft,
@@ -85,6 +90,20 @@ export function WorkoutLogger() {
         };
       }),
     }));
+  }
+
+  function startFromProgramDay(plan: WorkoutPlan, day: ProgramDay) {
+    const nextDraft = programDayToDraft(plan, day);
+    nextDraft.programId = plan.id;
+    nextDraft.programDayId = day.id;
+    setDraft(nextDraft);
+    setComposerOpen(true);
+    setErrorMessage(null);
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("workout-composer")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   function handleSave() {
@@ -186,13 +205,22 @@ export function WorkoutLogger() {
         </Button>
       </header>
 
-      <AssignedPlanCard />
+      <AssignedPlanCard onLogDay={startFromProgramDay} />
 
       {composerOpen && (
-        <section className="mb-8 rounded-2xl border border-border/70 bg-card/70 p-4 shadow-[0_0_0_1px_oklch(0.78_0.12_175/8%)] backdrop-blur-sm sm:p-6 animate-rise">
+        <section
+          id="workout-composer"
+          className="mb-8 rounded-2xl border border-border/70 bg-card/70 p-4 shadow-[0_0_0_1px_oklch(0.78_0.12_175/8%)] backdrop-blur-sm sm:p-6 animate-rise"
+        >
           <h2 className="font-display text-xl font-semibold tracking-tight">
-            New session
+            {draft.programDayId ? "Log assigned session" : "New session"}
           </h2>
+          {draft.programDayId && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Prefilling from your program — adjust loads and reps, then save.
+              Free-log still works anytime via Log workout.
+            </p>
+          )}
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-1">
               <Label htmlFor="workout-title">Session title</Label>
@@ -453,6 +481,7 @@ export function WorkoutLogger() {
                 {workout.durationMinutes
                   ? ` · ${workout.durationMinutes} min`
                   : ""}
+                {workout.programDayId ? " · from program" : ""}
               </p>
               {workout.notes && (
                 <p className="mt-3 text-sm leading-relaxed text-foreground/85">
