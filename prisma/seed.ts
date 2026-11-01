@@ -372,34 +372,125 @@ async function main() {
     workoutPlan = await prisma.workoutPlan.create({
       data: {
         id: "wp-strength-a",
-        title: "Strength block · Week template",
+        title: "Strength block · 2 weeks",
         coachNote: "Log working sets honestly. Warm up to the first listed load.",
         assignedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2),
         createdById: coach.id,
-        sessions: toJson([
+        weeks: toJson([
           {
-            id: "ws-lower-a",
-            title: "Lower strength A",
-            dayLabel: "Day 1",
-            exercises: [
+            id: "wk-1",
+            weekNumber: 1,
+            label: "Week 1",
+            days: [
               {
-                id: "we-1",
-                name: "Back squat",
-                prescription: "3×5 @ RPE 7",
-                notes: "Pause first rep",
+                id: "day-w1-lower",
+                title: "Lower strength A",
+                dayLabel: "Day 1",
+                exercises: [
+                  {
+                    id: "ex-bs",
+                    name: "Back squat",
+                    targetSets: 3,
+                    targetReps: "5 @ RPE 7",
+                    notes: "Pause first rep",
+                  },
+                  {
+                    id: "ex-rdl",
+                    name: "Romanian deadlift",
+                    targetSets: 3,
+                    targetReps: "8",
+                  },
+                  {
+                    id: "ex-lunge",
+                    name: "Walking lunge",
+                    targetSets: 2,
+                    targetReps: "10/leg",
+                  },
+                ],
               },
-              { id: "we-2", name: "Romanian deadlift", prescription: "3×8" },
-              { id: "we-3", name: "Walking lunge", prescription: "2×10/leg" },
+              {
+                id: "day-w1-upper",
+                title: "Upper push / pull",
+                dayLabel: "Day 2",
+                exercises: [
+                  {
+                    id: "ex-bench",
+                    name: "Bench press",
+                    targetSets: 3,
+                    targetReps: "6",
+                  },
+                  {
+                    id: "ex-row",
+                    name: "Chest-supported row",
+                    targetSets: 3,
+                    targetReps: "10",
+                  },
+                  {
+                    id: "ex-fp",
+                    name: "Cable face pull",
+                    targetSets: 3,
+                    targetReps: "15",
+                  },
+                ],
+              },
             ],
           },
           {
-            id: "ws-upper-a",
-            title: "Upper push / pull",
-            dayLabel: "Day 2",
-            exercises: [
-              { id: "we-4", name: "Bench press", prescription: "3×6" },
-              { id: "we-5", name: "Chest-supported row", prescription: "3×10" },
-              { id: "we-6", name: "Cable face pull", prescription: "3×15" },
+            id: "wk-2",
+            weekNumber: 2,
+            label: "Week 2",
+            days: [
+              {
+                id: "day-w2-lower",
+                title: "Lower strength A",
+                dayLabel: "Day 1",
+                exercises: [
+                  {
+                    id: "ex-bs-2",
+                    name: "Back squat",
+                    targetSets: 4,
+                    targetReps: "5 @ RPE 8",
+                    notes: "Add a working set",
+                  },
+                  {
+                    id: "ex-rdl-2",
+                    name: "Romanian deadlift",
+                    targetSets: 3,
+                    targetReps: "8",
+                  },
+                  {
+                    id: "ex-lunge-2",
+                    name: "Walking lunge",
+                    targetSets: 3,
+                    targetReps: "10/leg",
+                  },
+                ],
+              },
+              {
+                id: "day-w2-upper",
+                title: "Upper push / pull",
+                dayLabel: "Day 2",
+                exercises: [
+                  {
+                    id: "ex-bench-2",
+                    name: "Bench press",
+                    targetSets: 4,
+                    targetReps: "5",
+                  },
+                  {
+                    id: "ex-row-2",
+                    name: "Chest-supported row",
+                    targetSets: 3,
+                    targetReps: "10",
+                  },
+                  {
+                    id: "ex-fp-2",
+                    name: "Cable face pull",
+                    targetSets: 3,
+                    targetReps: "15",
+                  },
+                ],
+              },
             ],
           },
         ]),
